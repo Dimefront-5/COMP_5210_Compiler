@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 8/22/2023
+-@date: 8/23/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
@@ -15,9 +15,13 @@ import re
 
 
 def command_line_parser():
+
     parser = argparse.ArgumentParser(description='a custom python compiler for c files')
+
     parser.add_argument('file', help='a valid c input file', metavar='File')
-    parser.add_argument('-t', help='outputs a tokenized version of the input file')
+
+    parser.add_argument('-t', action="store_true", help='outputs a tokenized version of the input file')
+
     args = parser.parse_args()
 
     return args
@@ -47,6 +51,10 @@ def main():
     input_file = open(possible_input_file, "r") # open file
 
     tk.main(input_file)
+
+    if args.t: # if -t flag is used print out our tokens
+        print(input_file) #placeholder
+
 
 
 main()
