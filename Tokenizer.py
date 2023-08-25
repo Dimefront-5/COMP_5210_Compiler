@@ -9,11 +9,13 @@
 '''
 import re
 
-token_specifications = {'symbols': r'(\{|\}|\(|\)|\[|\]|\,|\;|\/|\&|\||\!|\%|\^|\~|\=)',
+token_specifications = {'symbols': r'(\{|\}|\(|\)|\[|\]|\,|\;|\/|\&|\||\!|\%|\^|\~|\=|\+|\-|\*|\<|\>|\?|\.|\:|\#|\@|\$|\`|\_|\')',
                             'double_symbols': r'(\=\=|\<\=|\>\=|\!\=|\&\&|\|\||\/\/)',
                             'types': r'(int|float|char|void|double)',
                             'characters': r'([a-zA-Z])',
-                            'keywords': r'(if|else|while|for|return|break|continue)'}
+                            'keywords': r'(if|else|while|for|return|break|continue)',
+                            'identifiers': r'^[A-Za-z][a-zA-Z0-9]*$',
+                            'numbers': r'([0-9]+)'}
 
 def type_detector(line, character, column_number):
     keyword = False
@@ -23,7 +25,7 @@ def type_detector(line, character, column_number):
         if not len(line) <= column_number + 2:
             word = character + line[column_number + 1] + line[column_number + 2]
 
-            if word == 'int' and not re.match(token_specifications['characters'], line[column_number + 3]):
+            if word == 'int':
                 keyword = 'int'
                 skip = 2
         
@@ -59,12 +61,12 @@ def type_detector(line, character, column_number):
                 keyword = 'double'
                 skip = 5
     
+    
     if keyword != False:
-        if not line[column_number + skip] == ' ': #if the type doesn't have a space before and after it isn't a type
-            if column_number - 1 >= 0:
-                if not line[column_number - 1] == ' ':
+        if line[column_number + skip + 1] == ' ': #if the type doesn't have a space before and after it isn't a type
+            if (column_number - 1) >= 0:
+                if line[column_number - 1] == ' ':
                     return keyword, skip # return the type and how many characters to skip
-                
             else:
                 return keyword, skip
             
@@ -109,7 +111,6 @@ def keyword_detector(line, character, column_number):
     elif character == 'r':
         if not len(line) <= column_number + 6:
             word = character + line[column_number + 1] + line[column_number + 2] + line[column_number + 3] + line[column_number + 4] + line[column_number + 5]
-
             if word == 'return':
                 keyword = 'return'
                 skip = 6
@@ -131,31 +132,48 @@ def keyword_detector(line, character, column_number):
                 skip = 8
     
     if keyword != False:
-        if not line[column_number + skip] == ' ':  # if the keyword doesn't have a space after it isn't a keyword
+        if line[column_number + skip] == ' ':  # if the keyword doesn't have a space after it isn't a keyword
             if column_number - 1 >= 0:
-                if not line[column_number - 1] == ' ': #In the case this is a c one liner, we want to make sure the character before is a space or it is invalid
+                if line[column_number - 1] == ' ': #In the case this is a c one liner, we want to make sure the character before is a space or it is invalid
                     return keyword, skip
                 
             else: #if the keyword is at the beginning of the line
                 return keyword, skip
-        
     return False, 0
 
+def identifier_detector(line, character, column_number):
+    word = character
+    column_number += 1
+    while (column_number <= (len(line) - 1)) and (not line[column_number] == ' '):
+        word = word + line[column_number]
+        column_number += 1
+
+    if re.match(token_specifications['identifiers'], word):
+        print(word)
+        skip_amount = len(word) - 1
+        return word, skip_amount
+    else :
+        return False, 0
+    
 def character_adder(line, character, column_number, line_number, tokens, dictionaryIndex):
     skip = 0
-    type_detection, skip_amount = type_detector(line, character, column_number) # check if the character is a type
-    
+
+    type_detection, skip_amount_type = type_detector(line, character, column_number) # check if the character is a type
+    keyword_detection, skip_amount_keyword = keyword_detector(line, character, column_number) # check if the character is a keyword
+
     if type_detection != False: # if it is a type
         tokens[str(dictionaryIndex)] = ['type', type_detection, line_number, column_number]
-        skip = skip_amount
-        column_number += skip_amount # skip the next characters since they are part of a type
+        skip = skip_amount_type
 
-    keyword_detection, skip_amount = keyword_detector(line, character, column_number) # check if the character is a keyword
-
-    if keyword_detection != False: # if it is a keyword
+    elif keyword_detection != False: # if it is a keyword
         tokens[str(dictionaryIndex)] = ['keyword', keyword_detection, line_number, column_number]
+        skip = skip_amount_keyword
+
+    else:
+
+        identifier, skip_amount = identifier_detector(line, character, column_number) # check if the character is an identifier
+        tokens[str(dictionaryIndex)] = ['identifier', identifier, line_number, column_number]
         skip = skip_amount
-        column_number += skip_amount # skip the next characters since they are part of a keyword
 
     return tokens, dictionaryIndex, skip, column_number
 
@@ -165,11 +183,11 @@ def symbol_adder(line, character, column_number, line_number, tokens, dictionary
     if len(line) <= column_number + 1: 
         tokens[str(dictionaryIndex)] = ['symbols', character, line_number, column_number]
 
+
     else:
         double_symbol = character + line[column_number + 1]
         if re.match(token_specifications['double_symbols'], double_symbol):
             tokens[str(dictionaryIndex)] = ['symbols', double_symbol, line_number, column_number]
-            column_number += 2 # skip the next character since it is part of a double symbol
             skip = 1
 
         else: 
@@ -178,7 +196,6 @@ def symbol_adder(line, character, column_number, line_number, tokens, dictionary
     return tokens, dictionaryIndex, skip, column_number
 
 def main(input_file):
-    
     
     tokens = {} #dictionary of tokens, the value is a array with the token and what line number it is found on
     dictionaryIndex = 0
@@ -195,7 +212,6 @@ def main(input_file):
 
             if skip > 0:
                 skip -= 1
-                continue
 
             elif re.match(token_specifications['symbols'], character): #I moved this function out for readability
                 tokens, dictionaryIndex, skip, column_number = symbol_adder(line, character, column_number, line_number, tokens, dictionaryIndex)
@@ -207,7 +223,3 @@ def main(input_file):
             column_number += 1
     print(tokens)
     return tokens
-
-    
-
-
