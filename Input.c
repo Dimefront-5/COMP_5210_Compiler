@@ -1,4 +1,10 @@
-//make a hello world program
+/*make a hello world program
+
+int void main {
+    printf("Hello World");
+    return 0;
+}*/
+
 #include <stdio.h>
 
 int main(void){

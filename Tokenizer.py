@@ -9,13 +9,13 @@
 '''
 import re
 
-token_specifications = {'symbols': r'(\{|\}|\(|\)|\[|\]|\,|\;|\/|\&|\||\!|\%|\^|\~|\=|\+|\-|\*|\<|\>|\?|\.|\:|\#|\@|\$|\`|\_|\')',
-                            'double_symbols': r'(\=\=|\<\=|\>\=|\!\=|\&\&|\|\||\/\/)',
-                            'types': r'(int|float|char|void|double)',
+token_specifications = {'symbols': r'\~|\@|\!|\$|\#|\^|\*|\%|\&|\(|\)|\[|\]|\{|\}|\<|\>|\+|\=|\_|\-|\||\/|\\|\;|\:|\'|\"|\,|\.|\?',
+                            'double_symbols': r'\=\=|\<\=|\>\=|\!\=|\&\&|\|\||\/\/|\/\*|\*\/',
+                            'types': r'int|float|char|void|double',
                             'characters': r'([a-zA-Z])',
-                            'keywords': r'(if|else|while|for|return|break|continue)',
-                            'identifiers': r'^[A-Za-z][a-zA-Z0-9]*$',
-                            'numbers': r'([0-9]+)'}
+                            'keywords': r'if|else|while|for|return|break|continue',
+                            'identifiers': r'^[A-Za-z_][\w]*$',
+                            'numbers': r'^[\d]+$'}
 
 def type_detector(line, character, column_number):
     keyword = False
@@ -148,12 +148,16 @@ def identifier_detector(line, character, column_number):
         word = word + line[column_number]
         column_number += 1
 
-    if re.match(token_specifications['identifiers'], word):
-        print(word)
+    if re.match(token_specifications['identifiers'], word): 
         skip_amount = len(word) - 1
         return word, skip_amount
-    else :
-        return False, 0
+    else: #If this doesn't match our format, we want to go back through the word and look for special chracters
+        i = 0
+        for i in range(len(word)):
+            if not re.match(token_specifications['characters'], word[i]) and not re.match(token_specifications['numbers'], word[i]):
+                skip_amount = i - 1
+                return word[:i], skip_amount
+    return False, 0
     
 def character_adder(line, character, column_number, line_number, tokens, dictionaryIndex):
     skip = 0
@@ -172,13 +176,38 @@ def character_adder(line, character, column_number, line_number, tokens, diction
     else:
 
         identifier, skip_amount = identifier_detector(line, character, column_number) # check if the character is an identifier
-        tokens[str(dictionaryIndex)] = ['identifier', identifier, line_number, column_number]
-        skip = skip_amount
+        if identifier != False:
+            tokens[str(dictionaryIndex)] = ['identifier', identifier, line_number, column_number]
+            skip = skip_amount
 
     return tokens, dictionaryIndex, skip, column_number
 
+
+def string_tokenizer(line, character, column_number, line_number, tokens, dictionaryIndex):
+
+    skip = 0
+    i = column_number + 1 #Don't care about first character since we already know it is a "
+    word = ''
+    while i < len(line):
+        if line[i] == '"':
+            break
+        else:
+            word = word + line[i]
+            skip += 1
+            i += 1
+
+    dictionaryIndex += 1
+    tokens[str(dictionaryIndex)] = ['string', word, line_number, column_number]
+
+    dictionaryIndex += 1
+    tokens[str(dictionaryIndex)] = ['symbols', '\"', line_number, column_number + skip + 1] # Go ahead and add the second quotation mark. 
+    skip = skip + 1 #We want to skip over the second quotation mark
+
+    return tokens, dictionaryIndex, skip
+
 def symbol_adder(line, character, column_number, line_number, tokens, dictionaryIndex):
     skip = 0
+    comment = False
 
     if len(line) <= column_number + 1: 
         tokens[str(dictionaryIndex)] = ['symbols', character, line_number, column_number]
@@ -188,12 +217,21 @@ def symbol_adder(line, character, column_number, line_number, tokens, dictionary
         double_symbol = character + line[column_number + 1]
         if re.match(token_specifications['double_symbols'], double_symbol):
             tokens[str(dictionaryIndex)] = ['symbols', double_symbol, line_number, column_number]
-            skip = 1
 
+            if double_symbol == '//': #Skip over comments, they aren't tokens and aren't necessary for our compiler
+                skip = len(line) - column_number - 1
+            elif double_symbol == '/*': 
+                comment = True #don't calculate skip since we will be skipping entire lines
+            else:
+                skip = 1
+            
         else: 
             tokens[str(dictionaryIndex)] = ['symbols', character, line_number, column_number]
+            if character == '\"': #Tokenize strings
+                tokens, dictionaryIndex, skip = string_tokenizer(line, character, column_number, line_number, tokens, dictionaryIndex)
 
-    return tokens, dictionaryIndex, skip, column_number
+
+    return tokens, dictionaryIndex, skip, column_number, comment
 
 def main(input_file):
     
@@ -202,24 +240,33 @@ def main(input_file):
     line_number = 0
     column_number = 0
     skip = 0
+    comment = False
 
     for line in input_file:
         line = line.strip()
         line_number += 1
         column_number = 0
-
         for character in line:
+            
+            if comment == True: #If we are in a comment, we want to skip over the line. Used for multi line comments
+               break
 
             if skip > 0:
                 skip -= 1
 
             elif re.match(token_specifications['symbols'], character): #I moved this function out for readability
-                tokens, dictionaryIndex, skip, column_number = symbol_adder(line, character, column_number, line_number, tokens, dictionaryIndex)
+                tokens, dictionaryIndex, skip, column_number, comment = symbol_adder(line, character, column_number, line_number, tokens, dictionaryIndex)
 
             elif re.match(token_specifications['characters'], character): # if the character is a letter
                 tokens, dictionaryIndex, skip, column_number = character_adder(line, character, column_number, line_number, tokens, dictionaryIndex)            
 
             dictionaryIndex += 1
             column_number += 1
+
+        if '*/' in line and comment == True: #We do this after so we can skip over the final line
+            tokens[str(dictionaryIndex)] = ['symbols', '*/', line_number, len(line) - 2]  #add the final */ to the tokens
+            comment = False
+            dictionaryIndex += 1
+
     print(tokens)
     return tokens

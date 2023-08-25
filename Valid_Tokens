@@ -1,1 +1,5 @@
-Temp
+Symbols: ~ @ ! $ # ^ * % & ( ) [ ] { } < > + = _ – | / \ ; : ‘ “ , . ? == // <= >= != && || /* */
+Types: int float char void double
+keywords: if else while for return break continue
+whitespace: not to be tokenized
+identifiers: r'^[a-zA-Z_][\w]*$' 
