@@ -7,12 +7,11 @@
 - ***WORK IN PROGRESS***
 
 '''
+
 import Tokenizer as tk
 import argparse
 import sys
 import os
-import re
-
 
 def command_line_parser():
 
@@ -30,7 +29,7 @@ def command_line_parser():
 def validity_check(possible_input_file):
     
     if not os.path.isfile(possible_input_file): # check if file exists
-        print("Please input a valid c file to compile")
+        print("Please check to see if the file exists and is stored in the same directory as the compiler")
         sys.exit()
 
     if possible_input_file[-2:] != ".c": # check if file is a c file
@@ -50,10 +49,11 @@ def main():
 
     input_file = open(possible_input_file, "r") # open file
 
-    tk.main(input_file)
+    tokens = tk.main(input_file)
 
     if args.t: # if -t flag is used print out our tokens
-        print(input_file) #placeholder
+       # print(tokens)
+       print("")
 
 
 
