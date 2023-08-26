@@ -14,11 +14,55 @@ import tokenize
 token_specifications = {'symbols': r'\~|\@|\!|\$|\#|\^|\*|\%|\&|\(|\)|\[|\]|\{|\}|\<|\>|\+|\=|\_|\-|\||\/|\\|\;|\:|\'|\"|\,|\.|\?',
                             'double_symbols': r'\=\=|\<\=|\>\=|\!\=|\&\&|\|\||\/\/|\/\*|\*\/',
                             'types': r'int|float|char|void|double',
+                            'type_modifiers': r'signed|unsigned|long|short',
                             'characters': r'([a-zA-Z])',
                             'keywords': r'if|else|while|for|return|break|continue',
                             'identifiers': r'^[A-Za-z_][\w]*$',
                             'numbers': r'^[\d]+$ | ^[\d]+\.[\d]+$'}
 
+
+def type_modifier_detector(line, character, column_number):
+    keyword = False
+    skip = 0
+
+    if character == 's':
+        if not len(line) <= column_number + 5:
+            word_signed = character + line[column_number + 1] + line[column_number + 2] + line[column_number + 3] + line[column_number + 4] + line[column_number + 5]
+
+            word_short = character + line[column_number + 1] + line[column_number + 2] + line[column_number + 3] + line[column_number + 4]
+
+            if word_short == 'short':
+                keyword = 'short'
+                skip = 4
+
+            if word_signed == 'signed':
+                keyword = 'signed'
+                skip = 5
+    elif character == 'u':
+        if not len(line) <= column_number + 7:
+            word = character + line[column_number + 1] + line[column_number + 2] + line[column_number + 3] + line[column_number + 4] + line[column_number + 5] + line[column_number + 6] + line[column_number + 7]
+
+            if word == 'unsigned':
+                keyword = 'unsigned'
+                skip = 7
+    elif character == 'l':
+        if not len(line) <= column_number + 3:
+            word = character + line[column_number + 1] + line[column_number + 2] + line[column_number + 3]
+
+            if word == 'long':
+                keyword = 'long'
+                skip = 3        
+
+    if keyword != False:
+        if line[column_number + skip + 1] == ' ': #if the type doesn't have a space before and after it isn't a type
+            if (column_number - 1) >= 0:
+                if line[column_number - 1] == ' ':
+                    return keyword, skip # return the type and how many characters to skip
+            else:
+                return keyword, skip
+            
+    return False, 0
+    
 def type_detector(line, character, column_number):
     keyword = False
     skip = 0
@@ -165,8 +209,13 @@ def character_adder(line, character, column_number, line_number, tokens, diction
 
     type_detection, skip_amount_type = type_detector(line, character, column_number) # check if the character is a type
     keyword_detection, skip_amount_keyword = keyword_detector(line, character, column_number) # check if the character is a keyword
+    type_modifier_detection, skip_amount_type_modifier = type_modifier_detector(line, character, column_number) # check if the character is a type modifier
 
-    if type_detection != False: # if it is a type
+    if type_modifier_detection != False: # if it is a type modifier
+        tokens[str(dictionaryIndex)] = ['type modifier', type_modifier_detection, line_number, column_number]
+        skip = skip_amount_type_modifier
+
+    elif type_detection != False: # if it is a type
         tokens[str(dictionaryIndex)] = ['type', type_detection, line_number, column_number]
         skip = skip_amount_type
 
