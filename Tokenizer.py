@@ -9,13 +9,15 @@
 '''
 import re
 
+import tokenize
+
 token_specifications = {'symbols': r'\~|\@|\!|\$|\#|\^|\*|\%|\&|\(|\)|\[|\]|\{|\}|\<|\>|\+|\=|\_|\-|\||\/|\\|\;|\:|\'|\"|\,|\.|\?',
                             'double_symbols': r'\=\=|\<\=|\>\=|\!\=|\&\&|\|\||\/\/|\/\*|\*\/',
                             'types': r'int|float|char|void|double',
                             'characters': r'([a-zA-Z])',
                             'keywords': r'if|else|while|for|return|break|continue',
                             'identifiers': r'^[A-Za-z_][\w]*$',
-                            'numbers': r'^[\d]+$'}
+                            'numbers': r'^[\d]+$ | ^[\d]+\.[\d]+$'}
 
 def type_detector(line, character, column_number):
     keyword = False
@@ -106,14 +108,14 @@ def keyword_detector(line, character, column_number):
 
             if word == 'for':
                 keyword = 'for'
-                skip = 3
+                skip = 2
         
     elif character == 'r':
         if not len(line) <= column_number + 6:
             word = character + line[column_number + 1] + line[column_number + 2] + line[column_number + 3] + line[column_number + 4] + line[column_number + 5]
             if word == 'return':
                 keyword = 'return'
-                skip = 6
+                skip = 5
         
     elif character == 'b':
         if not len(line) <= column_number + 4:
@@ -126,13 +128,12 @@ def keyword_detector(line, character, column_number):
     elif character == 'c':
         if not len(line) <= column_number + 8:
             word = character + line[column_number + 1] + line[column_number + 2] + line[column_number + 3] + line[column_number + 4] + line[column_number + 5] + line[column_number + 6] + line[column_number + 7]
-
             if word == 'continue':
                 keyword = 'continue'
-                skip = 8
-    
+                skip = 7
+
     if keyword != False:
-        if line[column_number + skip] == ' ':  # if the keyword doesn't have a space after it isn't a keyword
+        if line[column_number + skip + 1] == ' ' or line[column_number + skip + 1] == '(': # if the keyword doesn't have a space after it isn't a keyword
             if column_number - 1 >= 0:
                 if line[column_number - 1] == ' ': #In the case this is a c one liner, we want to make sure the character before is a space or it is invalid
                     return keyword, skip
@@ -233,8 +234,60 @@ def symbol_adder(line, character, column_number, line_number, tokens, dictionary
 
     return tokens, dictionaryIndex, skip, column_number, comment
 
-def main(input_file):
+
+
+def number_adder(line, character, column_number, line_number, tokens, dictionaryIndex):
+    skip = 0
+    number = character
+    index = column_number + 1
+
+    while index < len(line) - 1:
+        if line[index] == ' ':
+            break
+        else:
+            number = number + line[index]
+            index += 1
+            skip += 1
+
+    if number.isdigit(): #If the number is a whole valid number just add it and continue
+        tokens[str(dictionaryIndex)] = ['number', number, line_number, column_number]
+        return tokens, skip
     
+    else: #we are going to go through the entire string until we find a non number character, if it is a symbol. we know that the number is valid and it is an operation with no space
+        numberchecker = ''
+        for i in range(len(number)):
+            numberchecker = numberchecker + number[i]
+
+            if re.match(token_specifications['numbers'], numberchecker): #Continue if it is a valid number
+                continue
+
+            else:
+                if re.match(token_specifications['symbols'], number[i]): #Once we hit a symbol, we need to check and see if it a decmial or not
+
+                    if number[i] == '.': #double/float detection
+                        decimal_index = i + 1
+
+                        while decimal_index < len(number): # we want to go through the rest of the number and make sure it is a valid decimal.
+                            
+                            if number[decimal_index].isdigit():
+                                numberchecker = numberchecker + number[decimal_index]
+                                decimal_index += 1
+                            elif number[decimal_index] == ' ' or (re.match(token_specifications['symbols'], number[decimal_index]) and not number[decimal_index] == '.'): #If there is a space, then it is a vlaid decimal. Or if there is another symbol but isn't decmial we will say it is valid.
+                                tokens[str(dictionaryIndex)] = ['number', numberchecker, line_number, column_number]
+                                skip = len(numberchecker) - 1
+                                return tokens, skip
+                            else:
+                                return tokens, 0
+                    else: #if it is a random symbol, more than likely it is an assignment and we can just add the number
+                        tokens[str(dictionaryIndex)] = ['number', numberchecker[:i], line_number, column_number]
+                        skip = len(numberchecker[:i]) - 1
+                        return tokens, skip
+
+    return tokens, 0
+    
+
+def main(input_file):
+
     tokens = {} #dictionary of tokens, the value is a array with the token and what line number it is found on
     dictionaryIndex = 0
     line_number = 0
@@ -246,20 +299,28 @@ def main(input_file):
         line = line.strip()
         line_number += 1
         column_number = 0
+
         for character in line:
-            
+
             if comment == True: #If we are in a comment, we want to skip over the line. Used for multi line comments
                break
 
             if skip > 0:
                 skip -= 1
-
+                dictionaryIndex -= 1 #Since we are skipping over a character, we want to go back one in the dictionaryIndex since it will be increased at the end
+            
             elif re.match(token_specifications['symbols'], character): #I moved this function out for readability
                 tokens, dictionaryIndex, skip, column_number, comment = symbol_adder(line, character, column_number, line_number, tokens, dictionaryIndex)
+            
+            elif character.isdigit(): # if the character is a number
+                tokens, skip = number_adder(line, character, column_number, line_number, tokens, dictionaryIndex)
+            
+            elif character.isalpha(): # if the character is a letter
+                tokens, dictionaryIndex, skip, column_number = character_adder(line, character, column_number, line_number, tokens, dictionaryIndex)
 
-            elif re.match(token_specifications['characters'], character): # if the character is a letter
-                tokens, dictionaryIndex, skip, column_number = character_adder(line, character, column_number, line_number, tokens, dictionaryIndex)            
-
+            elif character == ' ': #We want to keep dictionary index the same for numbering purposes.
+                dictionaryIndex -=1
+            
             dictionaryIndex += 1
             column_number += 1
 
@@ -268,5 +329,4 @@ def main(input_file):
             comment = False
             dictionaryIndex += 1
 
-    print(tokens)
     return tokens

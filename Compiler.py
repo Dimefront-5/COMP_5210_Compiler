@@ -12,6 +12,9 @@ import Tokenizer as tk
 import argparse
 import sys
 import os
+from colorama import Fore, Back, Style
+import tokenize
+
 
 def command_line_parser():
 
@@ -38,6 +41,19 @@ def validity_check(possible_input_file):
 
     return
 
+
+def output_formatter(tokens):
+    output = ""
+    for i in tokens:
+        output += "Token Number: " + str(i)
+        output += " - Token Type: " + tokens[i][0]
+        output += " - Token: " + str(tokens[i][1])
+        output += " - Line Number: " + str(tokens[i][2])
+        output += " - Column Number: " + str(tokens[i][3])
+        output += "\n"
+
+    return output
+
 # main function
 def main():
     
@@ -52,8 +68,7 @@ def main():
     tokens = tk.main(input_file)
 
     if args.t: # if -t flag is used print out our tokens
-       # print(tokens)
-       print("")
+       print(output_formatter(tokens))
 
 
 
