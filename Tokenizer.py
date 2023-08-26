@@ -257,38 +257,46 @@ def number_adder(line, character, column_number, line_number, tokens, dictionary
         numberchecker = ''
         for i in range(len(number)):
             numberchecker = numberchecker + number[i]
-
-            if re.match(token_specifications['numbers'], numberchecker): #Continue if it is a valid number
+            if numberchecker.isdigit(): #Continue if it is a valid number
                 continue
 
+            elif re.match(token_specifications['symbols'], numberchecker[i]): #Once we hit a symbol, we need to check and see if it a decmial or not
+                if number[i] == '.': #double/float detection
+                    decimal_index = i + 1
+
+                    while decimal_index < len(number): # we want to go through the rest of the number and make sure it is a valid decimal.
+                        
+                        if number[decimal_index].isdigit():
+                            numberchecker = numberchecker + number[decimal_index]
+                            decimal_index += 1
+
+                        elif number[decimal_index] == ' ' or (re.match(token_specifications['symbols'], number[decimal_index]) and not number[decimal_index] == '.'): #If there is a space, then it is a vlaid decimal. Or if there is another symbol but isn't decmial we will say it is valid.
+                            tokens[str(dictionaryIndex)] = ['number', numberchecker, line_number, column_number]
+                            skip = len(numberchecker) - 1
+                            return tokens, skip
+                        
+                        else: #it is an invalid double. We are going to go through the number and find and skip up to the final symbol.
+                            while decimal_index < len(number):
+                                if re.match(token_specifications['symbols'], number[decimal_index]):
+                                    skip = decimal_index -1 #We want to skip over the invalid double
+                                    break
+                                else:
+                                    decimal_index += 1
+                            return tokens, skip
+                        
+                else: #if it is a random symbol, more than likely it is an assignment and we can just add the number
+                    tokens[str(dictionaryIndex)] = ['number', numberchecker[:i], line_number, column_number]
+                    skip = len(numberchecker[:i]) - 1
+                    return tokens, skip
             else:
-                if re.match(token_specifications['symbols'], number[i]): #Once we hit a symbol, we need to check and see if it a decmial or not
-
-                    if number[i] == '.': #double/float detection
-                        decimal_index = i + 1
-
-                        while decimal_index < len(number): # we want to go through the rest of the number and make sure it is a valid decimal.
-                            
-                            if number[decimal_index].isdigit():
-                                numberchecker = numberchecker + number[decimal_index]
-                                decimal_index += 1
-                            elif number[decimal_index] == ' ' or (re.match(token_specifications['symbols'], number[decimal_index]) and not number[decimal_index] == '.'): #If there is a space, then it is a vlaid decimal. Or if there is another symbol but isn't decmial we will say it is valid.
-                                tokens[str(dictionaryIndex)] = ['number', numberchecker, line_number, column_number]
-                                skip = len(numberchecker) - 1
-                                return tokens, skip
-                            else:
-                                return tokens, 0
-                    else: #if it is a random symbol, more than likely it is an assignment and we can just add the number
-                        tokens[str(dictionaryIndex)] = ['number', numberchecker[:i], line_number, column_number]
-                        skip = len(numberchecker[:i]) - 1
-                        return tokens, skip
+                return tokens, skip
 
     return tokens, 0
     
 
 def main(input_file):
 
-    tokens = {} #dictionary of tokens, the value is a array with the token and what line number it is found on
+    tokens = {} #dictionary of tokens, the value is a list as follows [type, token, line number, column number]
     dictionaryIndex = 0
     line_number = 0
     column_number = 0

@@ -10,7 +10,7 @@ int void main {
 int main(void){
     printf("Hello World\nd");
     int i = 0;
-    if(5.02345==5) {
+    if(5.02345==52132.141ad) {
         printf("1 is equal to 1\n");
     }
     return 0;
