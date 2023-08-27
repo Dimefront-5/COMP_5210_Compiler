@@ -1,0 +1,7 @@
+Symbols: ~ @ ! $ # ^ * % & ( ) [ ] { } < > + = - | / \ ; : ' “ , . ? == // <= >= != && || /* */ ++ --
+Types: int float char void double
+Type Modifiers: long, unsigned, signed, short
+keywords: if else while for return break continue
+whitespace: not to be tokenized
+identifiers: r'^[a-zA-Z_][\w_]*$'
+numbers: r'^[\d]+$ | ^[\d]*\.[\d]+$' | ^0[xX][\dA-Fa-f]+$'

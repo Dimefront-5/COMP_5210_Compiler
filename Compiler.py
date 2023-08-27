@@ -46,6 +46,7 @@ def output_formatter(tokens):
     #Better formatting
     output = ""
     output2 = ""
+    output3 = ""
     lineno = 0
     for i in tokens:
         output += "Token Number: " + str(i)
@@ -57,10 +58,13 @@ def output_formatter(tokens):
 
         if lineno != tokens[i][2]:
             output2 += "\n"
+            output3 += "\n"
             lineno = tokens[i][2]
         output2 += "\'" + tokens[i][1] + "\' "
 
-    output += "\n\n\n" + output2
+        output3 += tokens[i][0] + " "
+
+    output += "\n\n\n" + output2 + "\n\n\n" + output3
     return output
 
 # main function
