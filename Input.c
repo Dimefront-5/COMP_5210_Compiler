@@ -5,7 +5,7 @@ int void main {
     return 0;
 }*/
 
-#include <stdio.h>
+#include<stdio.h>
 
 int main() {
     // Declare variables
@@ -15,7 +15,7 @@ int main() {
     void *ptr = NULL;
     
     // Conditional statement
-    if(num1 > 0xBEEF&&num2<4){
+    if(num1>0xBEEF&&num2<4){
         printf("Both conditions are true\n");
     } else {
         printf("At least one condition is false\n");

@@ -200,7 +200,7 @@ def identifier_detector(line, character, column_number):
     else: #If this doesn't match our format, we want to go back through the word and look for special chracters
         i = 0
         for i in range(len(word)):
-            if not re.match(token_specifications['characters'], word[i]) and not re.match(token_specifications['numbers'], word[i]):
+            if  re.match(token_specifications['symbols'], word[i]):
                 skip_amount = i - 1
                 return word[:i], skip_amount
     return False, 0
@@ -235,7 +235,7 @@ def character_adder(line, character, column_number, line_number, tokens, diction
     return tokens, dictionaryIndex, skip, column_number 
 
 
-def string_tokenizer(line, character, column_number, line_number, tokens, dictionaryIndex):
+def string_tokenizer(line, column_number, line_number, tokens, dictionaryIndex):
 
     skip = 0
     i = column_number + 1 #Don't care about first character since we already know it is a "
@@ -280,7 +280,7 @@ def symbol_adder(line, character, column_number, line_number, tokens, dictionary
         else: 
             tokens[str(dictionaryIndex)] = ['symbols', character, line_number, column_number]
             if character == '\"': #Tokenize strings
-                tokens, dictionaryIndex, skip = string_tokenizer(line, character, column_number, line_number, tokens, dictionaryIndex) #We want to add the entire string as a token
+                tokens, dictionaryIndex, skip = string_tokenizer(line, column_number, line_number, tokens, dictionaryIndex) #We want to add the entire string as a token
 
 
     return tokens, dictionaryIndex, skip, column_number, comment
