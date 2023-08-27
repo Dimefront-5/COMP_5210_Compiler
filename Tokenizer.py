@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 8/23/2023
+-@date: 8/27/2023
 
 - Tokenizes our input files
 - ***WORK IN PROGRESS***
@@ -18,7 +18,8 @@ token_specifications = {'symbols': r'\~|\@|\!|\$|\#|\^|\*|\%|\&|\(|\)|\[|\]|\{|\
                             'characters': r'([a-zA-Z])',
                             'keywords': r'if|else|while|for|return|break|continue',
                             'identifiers': r'^[A-Za-z_][\w]*$',
-                            'numbers': r'^[\d]+$ | ^[\d]+\.[\d]+$'}
+                            'numbers': r'^[\d]+$ | ^[\d]+\.[\d]+$',
+                            'hexidecimal': r'^0[xX][\dA-Fa-f]+$'}
 
 
 def type_modifier_detector(line, character, column_number):
@@ -289,7 +290,14 @@ def number_adder(line, character, column_number, line_number, tokens, dictionary
     skip = 0
     number = character
     index = column_number + 1
+    ishexidecimal = False
 
+    if line[index] == 'x': #hexidecmial notation
+        ishexidecimal = True
+        number = number + line[index]
+        index += 1
+        skip += 1
+    
     while index < len(line) - 1:
         if line[index] == ' ':
             break
@@ -297,6 +305,22 @@ def number_adder(line, character, column_number, line_number, tokens, dictionary
             number = number + line[index]
             index += 1
             skip += 1
+
+    if ishexidecimal == True: #If it is hexidecimal, we want to make sure it is valid
+        print(number)
+        if number[2:].isdigit() or re.match(token_specifications['hexidecimal'], number): #If it is a valid hexidecimal, we want to add it
+            tokens[str(dictionaryIndex)] = ['number', number, line_number, column_number]
+            return tokens, skip
+        
+        elif re.match(token_specifications["symbols"],number[-1:]):
+            for i in range(len(number)):
+                if re.match(token_specifications['symbols'], number[i]):
+                    skip = i - 1
+                    break
+            tokens[str(dictionaryIndex)] = ['number', number[:i], line_number, column_number]
+            return tokens, skip
+        else: #If it is an invalid hexidecimal, we want to skip over it
+            return tokens, skip
 
     if number.isdigit(): #If the number is a whole valid number just add it and continue
         tokens[str(dictionaryIndex)] = ['number', number, line_number, column_number]
@@ -332,7 +356,7 @@ def number_adder(line, character, column_number, line_number, tokens, dictionary
                                 else:
                                     decimal_index += 1
                             return tokens, skip
-                        
+                         
                 else: #if it is a random symbol, more than likely it is an assignment and we can just add the number
                     tokens[str(dictionaryIndex)] = ['number', numberchecker[:i], line_number, column_number]
                     skip = len(numberchecker[:i]) - 1

@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 8/23/2023
+-@date: 8/26/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
@@ -12,10 +12,9 @@ import Tokenizer as tk
 import argparse
 import sys
 import os
-from colorama import Fore, Back, Style
-import tokenize
 
 
+#Built in help command. Only flag we need it -t
 def command_line_parser():
 
     parser = argparse.ArgumentParser(description='a custom python compiler for c files')
@@ -41,16 +40,25 @@ def validity_check(possible_input_file):
 
     return
 
-
+#Might be a better way to format this, but this works for now
 def output_formatter(tokens):
+
+    #Better formatting
     output = ""
+    lineno = 0
     for i in tokens:
+        '''
         output += "Token Number: " + str(i)
         output += " - Token Type: " + tokens[i][0]
         output += " - Token: " + str(tokens[i][1])
         output += " - Line Number: " + str(tokens[i][2])
         output += " - Column Number: " + str(tokens[i][3])
         output += "\n"
+        '''
+        if lineno != tokens[i][2]:
+            output += "\n"
+            lineno = tokens[i][2]
+        output += "\'" + tokens[i][1] + "\' "
 
     return output
 
