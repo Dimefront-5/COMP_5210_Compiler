@@ -12,7 +12,7 @@ import re
 import tokenize
 
 token_specifications = {'symbols': r'\~|\@|\!|\$|\#|\^|\*|\%|\&|\(|\)|\[|\]|\{|\}|\<|\>|\+|\=|\_|\-|\||\/|\\|\;|\:|\'|\"|\,|\.|\?',
-                            'double_symbols': r'\=\=|\<\=|\>\=|\!\=|\&\&|\|\||\/\/|\/\*|\*\/',
+                            'double_symbols': r'\=\=|\<\=|\>\=|\!\=|\&\&|\|\||\/\/|\/\*|\*\/|\+\+',
                             'types': r'int|float|char|void|double',
                             'type_modifiers': r'signed|unsigned|long|short',
                             'characters': r'([a-zA-Z])',
@@ -231,7 +231,8 @@ def character_adder(line, character, column_number, line_number, tokens, diction
             tokens[str(dictionaryIndex)] = ['identifier', identifier, line_number, column_number]
             skip = skip_amount
 
-    return tokens, dictionaryIndex, skip, column_number
+    # if it is none of the above, is more than likely invalid Will edit the if statement above to account for errorchecking
+    return tokens, dictionaryIndex, skip, column_number 
 
 
 def string_tokenizer(line, character, column_number, line_number, tokens, dictionaryIndex):
@@ -260,7 +261,7 @@ def symbol_adder(line, character, column_number, line_number, tokens, dictionary
     skip = 0
     comment = False
 
-    if len(line) <= column_number + 1: 
+    if len(line) <= column_number + 1: #We know it isn't a double, so we just add the symbol
         tokens[str(dictionaryIndex)] = ['symbols', character, line_number, column_number]
 
 
@@ -279,13 +280,56 @@ def symbol_adder(line, character, column_number, line_number, tokens, dictionary
         else: 
             tokens[str(dictionaryIndex)] = ['symbols', character, line_number, column_number]
             if character == '\"': #Tokenize strings
-                tokens, dictionaryIndex, skip = string_tokenizer(line, character, column_number, line_number, tokens, dictionaryIndex)
+                tokens, dictionaryIndex, skip = string_tokenizer(line, character, column_number, line_number, tokens, dictionaryIndex) #We want to add the entire string as a token
 
 
     return tokens, dictionaryIndex, skip, column_number, comment
 
 
 
+def float_validator(tokens, number, dictionaryIndex, line_number, column_number, skip, i):
+
+    decimal_index = i + 1
+    while decimal_index < len(number): # we want to go through the rest of the number and make sure it is a valid decimal.
+
+        if number[decimal_index].isdigit():
+            if (decimal_index + 1 == len(number)):
+                tokens[str(dictionaryIndex)] = ['number', number, line_number, column_number]
+                skip = len(number) - 1
+                return tokens, skip
+            decimal_index += 1
+        
+        elif number[decimal_index] == ' ' or (re.match(token_specifications['symbols'], number[decimal_index]) and not number[decimal_index] == '.'): #If there is a space, then it is a vlaid decimal. Or if there is another symbol but isn't decmial we will say it is valid.
+            tokens[str(dictionaryIndex)] = ['number', number[:decimal_index], line_number, column_number]
+            skip = len(number[:decimal_index]) - 1
+            return tokens, skip
+        
+        else: #it is an invalid double. We are going to go through the number and find and skip up to the final symbol.
+            while decimal_index < len(number):
+                if re.match(token_specifications['symbols'], number[decimal_index]):
+                    skip = decimal_index -1 #We want to skip over the invalid double
+                    break
+                else:
+                    decimal_index += 1
+    
+    return tokens, skip
+
+def hexidecmial_validator(tokens, number, dictionaryIndex, line_number, column_number, skip):
+
+    if number[2:].isdigit() or re.match(token_specifications['hexidecimal'], number): #If it is a valid hexidecimal, we want to add it
+            tokens[str(dictionaryIndex)] = ['number', number, line_number, column_number]
+            return tokens, skip
+        
+    elif re.match(token_specifications["symbols"],number[-1:]):
+        for i in range(len(number)):
+            if re.match(token_specifications['symbols'], number[i]):
+                skip = i - 1
+                break
+        tokens[str(dictionaryIndex)] = ['number', number[:i], line_number, column_number]
+        return tokens, skip
+    else: #If it is an invalid hexidecimal, we want to skip over it
+        return tokens, skip
+    
 def number_adder(line, character, column_number, line_number, tokens, dictionaryIndex):
     skip = 0
     number = character
@@ -307,20 +351,8 @@ def number_adder(line, character, column_number, line_number, tokens, dictionary
             skip += 1
 
     if ishexidecimal == True: #If it is hexidecimal, we want to make sure it is valid
-        print(number)
-        if number[2:].isdigit() or re.match(token_specifications['hexidecimal'], number): #If it is a valid hexidecimal, we want to add it
-            tokens[str(dictionaryIndex)] = ['number', number, line_number, column_number]
-            return tokens, skip
-        
-        elif re.match(token_specifications["symbols"],number[-1:]):
-            for i in range(len(number)):
-                if re.match(token_specifications['symbols'], number[i]):
-                    skip = i - 1
-                    break
-            tokens[str(dictionaryIndex)] = ['number', number[:i], line_number, column_number]
-            return tokens, skip
-        else: #If it is an invalid hexidecimal, we want to skip over it
-            return tokens, skip
+        tokens, skip = hexidecmial_validator(tokens, number, dictionaryIndex, line_number, column_number, skip)
+        return tokens, skip
 
     if number.isdigit(): #If the number is a whole valid number just add it and continue
         tokens[str(dictionaryIndex)] = ['number', number, line_number, column_number]
@@ -335,27 +367,8 @@ def number_adder(line, character, column_number, line_number, tokens, dictionary
 
             elif re.match(token_specifications['symbols'], numberchecker[i]): #Once we hit a symbol, we need to check and see if it a decmial or not
                 if number[i] == '.': #double/float detection
-                    decimal_index = i + 1
-
-                    while decimal_index < len(number): # we want to go through the rest of the number and make sure it is a valid decimal.
-                        
-                        if number[decimal_index].isdigit():
-                            numberchecker = numberchecker + number[decimal_index]
-                            decimal_index += 1
-
-                        elif number[decimal_index] == ' ' or (re.match(token_specifications['symbols'], number[decimal_index]) and not number[decimal_index] == '.'): #If there is a space, then it is a vlaid decimal. Or if there is another symbol but isn't decmial we will say it is valid.
-                            tokens[str(dictionaryIndex)] = ['number', numberchecker, line_number, column_number]
-                            skip = len(numberchecker) - 1
-                            return tokens, skip
-                        
-                        else: #it is an invalid double. We are going to go through the number and find and skip up to the final symbol.
-                            while decimal_index < len(number):
-                                if re.match(token_specifications['symbols'], number[decimal_index]):
-                                    skip = decimal_index -1 #We want to skip over the invalid double
-                                    break
-                                else:
-                                    decimal_index += 1
-                            return tokens, skip
+                    tokens, skip = float_validator(tokens, number, dictionaryIndex, line_number, column_number, skip, i)
+                    return tokens, skip
                          
                 else: #if it is a random symbol, more than likely it is an assignment and we can just add the number
                     tokens[str(dictionaryIndex)] = ['number', numberchecker[:i], line_number, column_number]
@@ -367,47 +380,53 @@ def number_adder(line, character, column_number, line_number, tokens, dictionary
     return tokens, 0
     
 
+
+def tokenizer(line, line_number, tokens, dictionaryIndex, comment):
+    column_number = 0
+    skipamount = 0
+
+    for character in line:
+
+        if comment == True: #If we are in a comment, we want to skip over the line. Used for multi line comments
+            break
+
+        if skipamount > 0:
+            skipamount -= 1
+            dictionaryIndex -= 1 #Since we are skipping over a character, we want to go back one in the dictionaryIndex since it will be increased at the end
+        
+        elif re.match(token_specifications['symbols'], character): #I moved this function out for readability
+            tokens, dictionaryIndex, skipamount, column_number, comment = symbol_adder(line, character, column_number, line_number, tokens, dictionaryIndex)
+        
+        elif character.isdigit(): # if the character is a number
+            tokens, skipamount = number_adder(line, character, column_number, line_number, tokens, dictionaryIndex)
+        
+        elif character.isalpha(): # if the character is a letter
+            tokens, dictionaryIndex, skipamount, column_number = character_adder(line, character, column_number, line_number, tokens, dictionaryIndex)
+
+        elif character == ' ': #We want to keep dictionary index the same for numbering purposes.
+            dictionaryIndex -=1
+        
+        dictionaryIndex += 1
+        column_number += 1
+    
+    if '*/' in line and comment == True: #We do this after so we can skip over the final line
+        tokens[str(dictionaryIndex)] = ['symbols', '*/', line_number, len(line) - 2]  #add the final */ to the tokens
+        comment = False
+        dictionaryIndex += 1
+
+    return tokens, dictionaryIndex, comment
+
+
 def main(input_file):
 
     tokens = {} #dictionary of tokens, the value is a list as follows [type, token, line number, column number]
     dictionaryIndex = 0
     line_number = 0
-    column_number = 0
-    skip = 0
     comment = False
 
     for line in input_file:
-        line = line.strip()
         line_number += 1
-        column_number = 0
-
-        for character in line:
-
-            if comment == True: #If we are in a comment, we want to skip over the line. Used for multi line comments
-               break
-
-            if skip > 0:
-                skip -= 1
-                dictionaryIndex -= 1 #Since we are skipping over a character, we want to go back one in the dictionaryIndex since it will be increased at the end
-            
-            elif re.match(token_specifications['symbols'], character): #I moved this function out for readability
-                tokens, dictionaryIndex, skip, column_number, comment = symbol_adder(line, character, column_number, line_number, tokens, dictionaryIndex)
-            
-            elif character.isdigit(): # if the character is a number
-                tokens, skip = number_adder(line, character, column_number, line_number, tokens, dictionaryIndex)
-            
-            elif character.isalpha(): # if the character is a letter
-                tokens, dictionaryIndex, skip, column_number = character_adder(line, character, column_number, line_number, tokens, dictionaryIndex)
-
-            elif character == ' ': #We want to keep dictionary index the same for numbering purposes.
-                dictionaryIndex -=1
-            
-            dictionaryIndex += 1
-            column_number += 1
-
-        if '*/' in line and comment == True: #We do this after so we can skip over the final line
-            tokens[str(dictionaryIndex)] = ['symbols', '*/', line_number, len(line) - 2]  #add the final */ to the tokens
-            comment = False
-            dictionaryIndex += 1
+        line = line.strip()
+        tokens, dictionaryIndex, comment = tokenizer(line, line_number, tokens, dictionaryIndex, comment)
 
     return tokens

@@ -45,21 +45,22 @@ def output_formatter(tokens):
 
     #Better formatting
     output = ""
+    output2 = ""
     lineno = 0
     for i in tokens:
-        '''
         output += "Token Number: " + str(i)
         output += " - Token Type: " + tokens[i][0]
         output += " - Token: " + str(tokens[i][1])
         output += " - Line Number: " + str(tokens[i][2])
         output += " - Column Number: " + str(tokens[i][3])
         output += "\n"
-        '''
-        if lineno != tokens[i][2]:
-            output += "\n"
-            lineno = tokens[i][2]
-        output += "\'" + tokens[i][1] + "\' "
 
+        if lineno != tokens[i][2]:
+            output2 += "\n"
+            lineno = tokens[i][2]
+        output2 += "\'" + tokens[i][1] + "\' "
+
+    output += "\n\n\n" + output2
     return output
 
 # main function

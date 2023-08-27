@@ -7,17 +7,30 @@ int void main {
 
 #include <stdio.h>
 
-int main(void){
-    printf("Hello World\nd");
-    int i = 0;
-    long i = 0;
-    long long j = 0;
-    unsigned int k = 0;
-    unsigned long l = 0;
-    signed int m = 0;
-    short k = 0;
-    if(5.02345==0xBEEF) {
-        printf("1 is equal to 1\n");
+int main() {
+    // Declare variables
+    int num1 = 42;
+    double num2 = 3.14;
+    char ch = 'A';
+    void *ptr = NULL;
+    
+    // Conditional statement
+    if(num1 > 0xBEEF&&num2<4){
+        printf("Both conditions are true\n");
+    } else {
+        printf("At least one condition is false\n");
     }
+    
+    // Loop
+    for (int i = 0; i < 5; i++) {
+        printf("Iteration %d\n", i);
+    }
+    
+    // Return statement
     return 0;
 }
+
+
+
+
+
