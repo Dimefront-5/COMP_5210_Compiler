@@ -316,16 +316,17 @@ def float_validator(dict_of_tokens, number, dictionaryIndex, line_number, column
     return dict_of_tokens, skip
 
 def hexidecmial_validator(dict_of_tokens, number, dictionaryIndex, line_number, column_number, skip):
-
+    print("hi", number)
     if number[2:].isdigit() or re.match(token_specifications['hexidecimal'], number): #If it is a valid hexidecimal, we want to add it
             dict_of_tokens[str(dictionaryIndex)] = ['number', number, line_number, column_number]
             return dict_of_tokens, skip
         
-    elif re.match(token_specifications["symbols"],number[-1:]):
-        for i in range(len(number)):
-            if re.match(token_specifications['symbols'], number[i]):
-                skip = i - 1
-                break
+    
+    for i in range(len(number)):
+        if re.match(token_specifications['symbols'], number[i]):
+            skip = i - 1
+            break
+    if re.match(token_specifications['hexidecimal'], number[:i]): #If it is a valid hexidecimal, we want to add it
         dict_of_tokens[str(dictionaryIndex)] = ['number', number[:i], line_number, column_number]
         return dict_of_tokens, skip
     else: #If it is an invalid hexidecimal, we want to skip over it
