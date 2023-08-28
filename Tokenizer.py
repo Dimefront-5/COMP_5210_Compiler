@@ -250,6 +250,31 @@ def character_tokenizer(line, character, column_number, line_number, dict_of_tok
     # if it is none of the above, is more than likely invalid Will edit the if statement above to account for errorchecking
     return dict_of_tokens, dictionaryIndex, skip, column_number 
 
+def char_type_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex):
+    skip = 0
+    i = column_number + 1 #Don't care about first character since we already know it is a "
+    word = ''
+    while i < len(line):
+        if line[i] == '\'' and line[i-1] != '\\':
+            print(line[i], line[i-1], line)
+            break
+        else:
+            word = word + line[i]
+            skip += 1
+            i += 1
+
+    if i >= len(line): #If we don't find the second quotation mark, we know it is an invalid string
+        dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid characters', line, line_number, column_number]
+        return dict_of_tokens, dictionaryIndex, skip
+    
+    dictionaryIndex += 1
+    dict_of_tokens[str(dictionaryIndex)] = ['characters', word, line_number, column_number]
+
+    dictionaryIndex += 1
+    dict_of_tokens[str(dictionaryIndex)] = ['symbols', '\'', line_number, column_number + skip + 1] # Go ahead and add the second quotation mark. 
+    skip = skip + 1 #We want to skip over the second quotation mark
+
+    return dict_of_tokens, dictionaryIndex, skip
 
 def string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex):
 
@@ -257,7 +282,8 @@ def string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionar
     i = column_number + 1 #Don't care about first character since we already know it is a "
     word = ''
     while i < len(line):
-        if line[i] == '"':
+        if line[i] == '"' and line[i-1] != '\\':
+            print(line[i], line[i-1], line)
             break
         else:
             word = word + line[i]
@@ -300,9 +326,10 @@ def symbol_tokenizer(line, character, column_number, line_number, dict_of_tokens
             
         else: 
             dict_of_tokens[str(dictionaryIndex)] = ['symbols', character, line_number, column_number]
-            if character == '\"': #Tokenize strings
+            if character == '\"' and line[column_number -1] != "\\": #Tokenize strings
                 dict_of_tokens, dictionaryIndex, skip = string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex) #We want to add the entire string as a token
-
+            elif character == '\'' and line[column_number - 1] != "\\":
+                dict_of_tokens, dictionaryIndex, skip = char_type_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex)
 
     return dict_of_tokens, dictionaryIndex, skip, column_number, comment
 

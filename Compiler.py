@@ -98,6 +98,7 @@ def main():
 
     output_for_tokens, error_output = output_formatter(tokens)
 
+    print(output_for_tokens)
     if error_output != "":
         print("Errors found in ", possible_input_file, ":\n\n")
         print(error_output)

@@ -11,7 +11,7 @@ int main() {
     // Declare variables
     int num1 = 42;
     double num2 = 3.14;
-    char ch = 'A';
+    char ch='\A';
     void *ptr = NULL;
     float long _num3 = 0.0;
     unsigned short num4 = 0;
