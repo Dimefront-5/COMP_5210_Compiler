@@ -187,7 +187,7 @@ def keyword_detector(line, character, column_number):
                 return keyword, skip
     return False, 0
 
-def identifier_detector(line, character, column_number):
+def identifier_detector(line, character, column_number, line_number, dict_of_tokens, dictionaryIndex):
     word = character
     column_number += 1
     while (column_number <= (len(line) - 1)) and (not line[column_number] == ' '):
@@ -197,12 +197,26 @@ def identifier_detector(line, character, column_number):
     if re.match(token_specifications['identifiers'], word): 
         skip_amount = len(word) - 1
         return word, skip_amount
-    else: #If this doesn't match our format, we want to go back through the word and look for special chracters
+    
+    else: #If this doesn't match our format, we want to go back through the word and look for special chracters and see if it is being called within a function or statement
         i = 0
         for i in range(len(word)):
             if  re.match(token_specifications['symbols'], word[i]):
-                skip_amount = i - 1
-                return word[:i], skip_amount
+                if dict_of_tokens[str(dictionaryIndex-1)][0] == 'type': #decleration, we need to account for function names
+                    if word[i] == '=' or word[i] == ' ':
+                        skip_amount = i - 1
+                        return word[:i-1], skip_amount
+                    
+                    elif word[i] == '(' and word.find(')') > i:
+                        skip_amount = i - 1
+                        return word[:i], skip_amount
+                    else:
+                        skip_amount = len(line)
+                        dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid identifier', line, line_number, column_number]
+                        return False, skip_amount
+                else: #it is a function call or statement, so we want to return the identifier and skip over the symbol
+                    skip_amount = i - 1
+                    return word[:i], skip_amount
             
     return False, 0
     
@@ -212,7 +226,7 @@ def character_tokenizer(line, character, column_number, line_number, dict_of_tok
     type_detection, skip_amount_type = type_detector(line, character, column_number) # check if the character is a type
     keyword_detection, skip_amount_keyword = keyword_detector(line, character, column_number) # check if the character is a keyword
     type_modifier_detection, skip_amount_type_modifier = type_modifier_detector(line, character, column_number) # check if the character is a type modifier
-    identifier, skip_amount = identifier_detector(line, character, column_number) # check if the character is an identifier
+    identifier, skip_amount = identifier_detector(line, character, column_number, line_number, dict_of_tokens, dictionaryIndex) # check if the character is an identifier
 
     if type_modifier_detection != False: # if it is a type modifier
         dict_of_tokens[str(dictionaryIndex)] = ['type modifier', type_modifier_detection, line_number, column_number]
@@ -230,7 +244,7 @@ def character_tokenizer(line, character, column_number, line_number, dict_of_tok
             dict_of_tokens[str(dictionaryIndex)] = ['identifier', identifier, line_number, column_number]
             skip = skip_amount
     else: #None of the above, return this error
-        dict_of_tokens[str(dictionaryIndex)] = ['ERROR', character, line_number, column_number]
+        dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid identifier', line, line_number, column_number]
         skip = 1
 
     # if it is none of the above, is more than likely invalid Will edit the if statement above to account for errorchecking
@@ -251,7 +265,7 @@ def string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionar
             i += 1
 
     if i >= len(line): #If we don't find the second quotation mark, we know it is an invalid string
-        dict_of_tokens[str(dictionaryIndex)] = ['ERROR', word, line_number, column_number]
+        dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid string', line, line_number, column_number]
         return dict_of_tokens, dictionaryIndex, skip
     
     dictionaryIndex += 1
@@ -294,8 +308,7 @@ def symbol_tokenizer(line, character, column_number, line_number, dict_of_tokens
 
 
 
-def float_validator(dict_of_tokens, number, dictionaryIndex, line_number, column_number, skip, i):
-    print(number)
+def float_validator(dict_of_tokens, line, number, dictionaryIndex, line_number, column_number, skip, i):
     decimal_index = i + 1
     while decimal_index < len(number): # we want to go through the rest of the number and make sure it is a valid decimal.
 
@@ -316,21 +329,16 @@ def float_validator(dict_of_tokens, number, dictionaryIndex, line_number, column
             while decimal_index < len(number):
 
                 if re.match(token_specifications['symbols'], number[decimal_index]) or re.match(token_specifications['characters'], number[decimal_index]):
-                    dict_of_tokens[str(dictionaryIndex)] = ['ERROR', number[:decimal_index], line_number, column_number]
+                    dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid double', line, line_number, column_number]
 
-                    if re.match(token_specifications['symbols'], number[decimal_index]):
-                        skip = decimal_index -1 #We want to skip to before the symbol
-
-                    else:
-                        skip = decimal_index
-
+                    skip = len(line)
                     return dict_of_tokens, skip
                 else:
                     decimal_index += 1
     
     return dict_of_tokens, skip
 
-def hexidecmial_validator(dict_of_tokens, number, dictionaryIndex, line_number, column_number, skip):
+def hexidecmial_validator(dict_of_tokens, line,  number, dictionaryIndex, line_number, column_number, skip):
 
     if number[2:].isdigit() or re.match(token_specifications['hexidecimal'], number): #If it is a valid hexidecimal, we want to add it
             dict_of_tokens[str(dictionaryIndex)] = ['number', number, line_number, column_number]
@@ -345,7 +353,8 @@ def hexidecmial_validator(dict_of_tokens, number, dictionaryIndex, line_number, 
         dict_of_tokens[str(dictionaryIndex)] = ['number', number[:i], line_number, column_number]
         return dict_of_tokens, skip
     else: #If it is an invalid hexidecimal, we want to skip over it
-        dict_of_tokens[str(dictionaryIndex)] = ['ERROR', number[:i], line_number, column_number]
+        dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid hexidecimal', line, line_number, column_number]
+        skip = len(line)
         return dict_of_tokens, skip
     
 def number_tokenizer(line, character, column_number, line_number, dict_of_tokens, dictionaryIndex):
@@ -369,7 +378,7 @@ def number_tokenizer(line, character, column_number, line_number, dict_of_tokens
             skip += 1
 
     if ishexidecimal == True: #If it is hexidecimal, we want to make sure it is valid
-        dict_of_tokens, skip = hexidecmial_validator(dict_of_tokens, number, dictionaryIndex, line_number, column_number, skip)
+        dict_of_tokens, skip = hexidecmial_validator(dict_of_tokens, line, number, dictionaryIndex, line_number, column_number, skip)
         return dict_of_tokens, skip
 
     if number.isdigit(): #If the number is a whole valid number just add it and continue
@@ -385,7 +394,7 @@ def number_tokenizer(line, character, column_number, line_number, dict_of_tokens
 
             elif re.match(token_specifications['symbols'], numberchecker[i]): #Once we hit a symbol, we need to check and see if it a decmial or not
                 if number[i] == '.': #double/float detection
-                    dict_of_tokens, skip = float_validator(dict_of_tokens, number, dictionaryIndex, line_number, column_number, skip, i)
+                    dict_of_tokens, skip = float_validator(dict_of_tokens, line, number, dictionaryIndex, line_number, column_number, skip, i)
                     return dict_of_tokens, skip
                          
                 else: #if it is a random symbol, more than likely it is an assignment and we can just add the number
@@ -393,6 +402,8 @@ def number_tokenizer(line, character, column_number, line_number, dict_of_tokens
                     skip = len(numberchecker[:i]) - 1
                     return dict_of_tokens, skip
             else:
+                dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid number', line, line_number, column_number]
+                skip = len(line)
                 return dict_of_tokens, skip
 
     return dict_of_tokens, 0

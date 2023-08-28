@@ -47,6 +47,7 @@ def output_formatter(tokens):
     output = ""
     output2 = ""
     output3 = ""
+    error_output = ""
     lineno = 0
     for i in tokens:
         output += "Token Number: " + str(i)
@@ -61,13 +62,26 @@ def output_formatter(tokens):
             output3 += "\n"
             lineno = tokens[i][2]
 
-        if tokens[i][0] != "ERROR":
-            output2 += "\'" + tokens[i][1] + "\' "
-        
-        output3 += tokens[i][0] + " "
+        if "ERROR" in tokens[i][0]:
+            error_output += tokens[i][0] + " at line number - " + str(tokens[i][2]) + " column number - " + str(tokens[i][3]) + " line - \'" + tokens[i][1] + "\'" +  "\n"
 
-    output += "\n\n\n" + output2 + "\n\n\n" + output3
+        else:
+            output2 += "\'" + tokens[i][1] + "\' "
+            output3 += tokens[i][0] + " "
+
+    output += "\n\n\n" + output2 + "\n\n\n" + output3 + "\n\n\n"
+
+    return output, error_output
+
+'''
+    Will be used if we ever want to only print errors and not tokens
+    if error_output != "":
+        output = error_output
+    else:
+        output += "\n\n\n" + output2 + "\n\n\n" + output3
+
     return output
+'''
 
 # main function
 def main():
@@ -82,8 +96,15 @@ def main():
 
     tokens = tk.main(input_file)
 
+    output_for_tokens, error_output = output_formatter(tokens)
+
+    if error_output != "":
+        print("Errors found in ", possible_input_file, ":\n\n")
+        print(error_output)
+        sys.exit()
+
     if args.t: # if -t flag is used print out our tokens
-       print(output_formatter(tokens))
+       print(output_for_tokens)
 
 
 
