@@ -19,7 +19,8 @@ token_specifications = {    'symbols': r'\~|\@|\!|\$|\#|\^|\*|\%|\&|\(|\)|\[|\]|
                             'keywords': r'if|else|while|for|return|break|continue',
                             'identifiers': r'^[A-Za-z_][\w_]*$',
                             'numbers': r'^[\d]+$ | ^[\d]+\.[\d]+$',
-                            'hexidecimal': r'^0[xX][\dA-Fa-f]+$'}
+                            'hexidecimal': r'^0[xX][\dA-Fa-f]+$',
+                            'include': r'^[A-Za-z_]*[.][h]$'}
 
 
 def type_modifier_detector(line, character, column_number):
@@ -304,6 +305,36 @@ def string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionar
 
     return dict_of_tokens, dictionaryIndex, skip, multilineString
 
+
+def include_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex):
+    skip = 0
+    i = column_number + 1 #Don't care about first character since we already know it is a <
+    word = ''
+    while i < len(line):
+        if line[i] == '>':
+            break
+        else:
+            word = word + line[i]
+            skip += 1
+            i += 1
+
+    if i >= len(line): #If we don't find the second quotation mark, we know it is an invalid include statement
+        dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid include statement', line, line_number, column_number]
+        skip = len(line)
+        return dict_of_tokens, dictionaryIndex, skip
+    
+    if re.match(token_specifications['include'], word): #If it is a valid identifier, we want to add it
+        dict_of_tokens[str(dictionaryIndex)] = ['identifier', word, line_number, column_number + 1]
+
+    else:
+        dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid include statement', line, line_number, column_number]
+        skip = len(line)
+        return dict_of_tokens, dictionaryIndex, skip
+    
+    dictionaryIndex += 1
+    return dict_of_tokens, dictionaryIndex, skip
+
+
 def symbol_tokenizer(line, character, column_number, line_number, dict_of_tokens, dictionaryIndex):
     #If we hit the symbol tokenizer, we know there is no way it's invalid so we include it in the dictionary
     skip = 0
@@ -328,7 +359,11 @@ def symbol_tokenizer(line, character, column_number, line_number, dict_of_tokens
             
         else: 
             dict_of_tokens[str(dictionaryIndex)] = ['symbols', character, line_number, column_number]
-            if character == '\"' and line[column_number -1] != "\\": #Tokenize strings
+            if character == '<' and dict_of_tokens[str(dictionaryIndex - 1)][1] == 'include': #If we have a #include, we want to skip over the entire line
+                dictionaryIndex += 1
+                dict_of_tokens, dictionaryIndex, skip = include_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex)
+
+            elif character == '\"' and line[column_number -1] != "\\": #Tokenize strings
                 dictionaryIndex += 1
                 dict_of_tokens, dictionaryIndex, skip, multilinestring = string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex) #We want to add the entire string as a token
             elif character == '\'' and line[column_number - 1] != "\\":
