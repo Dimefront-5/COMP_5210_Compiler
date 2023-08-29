@@ -256,7 +256,6 @@ def char_type_tokenizer(line, column_number, line_number, dict_of_tokens, dictio
     word = ''
     while i < len(line):
         if line[i] == '\'' and line[i-1] != '\\':
-            print(line[i], line[i-1], line)
             break
         else:
             word = word + line[i]
@@ -277,22 +276,24 @@ def char_type_tokenizer(line, column_number, line_number, dict_of_tokens, dictio
     return dict_of_tokens, dictionaryIndex, skip
 
 def string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex):
-
+    multilineString = False
     skip = 0
     i = column_number + 1 #Don't care about first character since we already know it is a "
     word = ''
     while i < len(line):
         if line[i] == '"' and line[i-1] != '\\':
-            print(line[i], line[i-1], line)
             break
         else:
             word = word + line[i]
             skip += 1
             i += 1
 
-    if i >= len(line): #If we don't find the second quotation mark, we know it is an invalid string
+    if i >= len(line): #If we don't find the second quotation mark, it could be on the next line......... or it is an invalid string
+        multilineString = True
         dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid string', line, line_number, column_number]
-        return dict_of_tokens, dictionaryIndex, skip
+        dictionaryIndex += 1
+        dict_of_tokens[str(dictionaryIndex)] = ['string', word, line_number, column_number]
+        return dict_of_tokens, dictionaryIndex, skip, multilineString
     
     dictionaryIndex += 1
     dict_of_tokens[str(dictionaryIndex)] = ['string', word, line_number, column_number]
@@ -301,12 +302,13 @@ def string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionar
     dict_of_tokens[str(dictionaryIndex)] = ['symbols', '\"', line_number, column_number + skip + 1] # Go ahead and add the second quotation mark. 
     skip = skip + 1 #We want to skip over the second quotation mark
 
-    return dict_of_tokens, dictionaryIndex, skip
+    return dict_of_tokens, dictionaryIndex, skip, multilineString
 
 def symbol_tokenizer(line, character, column_number, line_number, dict_of_tokens, dictionaryIndex):
     #If we hit the symbol tokenizer, we know there is no way it's invalid so we include it in the dictionary
     skip = 0
     comment = False
+    multilinestring = False
 
     if len(line) <= column_number + 1: #We know it isn't a double, so we just add the symbol
         dict_of_tokens[str(dictionaryIndex)] = ['symbols', character, line_number, column_number]
@@ -327,11 +329,12 @@ def symbol_tokenizer(line, character, column_number, line_number, dict_of_tokens
         else: 
             dict_of_tokens[str(dictionaryIndex)] = ['symbols', character, line_number, column_number]
             if character == '\"' and line[column_number -1] != "\\": #Tokenize strings
-                dict_of_tokens, dictionaryIndex, skip = string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex) #We want to add the entire string as a token
+                dictionaryIndex += 1
+                dict_of_tokens, dictionaryIndex, skip, multilinestring = string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex) #We want to add the entire string as a token
             elif character == '\'' and line[column_number - 1] != "\\":
                 dict_of_tokens, dictionaryIndex, skip = char_type_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex)
 
-    return dict_of_tokens, dictionaryIndex, skip, column_number, comment
+    return dict_of_tokens, dictionaryIndex, skip, column_number, comment, multilinestring
 
 
 
@@ -440,6 +443,7 @@ def number_tokenizer(line, character, column_number, line_number, dict_of_tokens
 def main_tokenizer(line, line_number, dict_of_tokens, dictionaryIndex, comment):
     column_number = 0
     skipamount = 0
+    ismultilinestring = False
 
     for character in line:
 
@@ -454,7 +458,7 @@ def main_tokenizer(line, line_number, dict_of_tokens, dictionaryIndex, comment):
             dict_of_tokens, dictionaryIndex, skipamount, column_number = character_tokenizer(line, character, column_number, line_number, dict_of_tokens, dictionaryIndex)
 
         elif re.match(token_specifications['symbols'], character): #I moved this function out for readability
-            dict_of_tokens, dictionaryIndex, skipamount, column_number, comment = symbol_tokenizer(line, character, column_number, line_number, dict_of_tokens, dictionaryIndex)
+            dict_of_tokens, dictionaryIndex, skipamount, column_number, comment, ismultilinestring = symbol_tokenizer(line, character, column_number, line_number, dict_of_tokens, dictionaryIndex)
         
         elif character.isdigit(): # if the character is a number
             dict_of_tokens, skipamount = number_tokenizer(line, character, column_number, line_number, dict_of_tokens, dictionaryIndex)
@@ -470,8 +474,47 @@ def main_tokenizer(line, line_number, dict_of_tokens, dictionaryIndex, comment):
         comment = False
         dictionaryIndex += 1
 
-    return dict_of_tokens, dictionaryIndex, comment
+    return dict_of_tokens, dictionaryIndex, comment, ismultilinestring
 
+
+def multiline_string_evalulator(line, line_number, dict_of_tokens, dictionaryIndex, ismultilinestring):
+    multilinestring = dict_of_tokens[str(dictionaryIndex -1)][1]
+
+    if '\"' in line:
+        multilinestring = multilinestring + line[:line.find('\"')]
+
+        firstquotationIndex = multilinestring.find('\"')
+
+        dict_of_tokens[str(dictionaryIndex -2)] = ['string', multilinestring, line_number, firstquotationIndex + 1]
+
+        dict_of_tokens[str(dictionaryIndex -1)] = ['symbols', '\"', line_number, line.find('\"')]
+
+        if line[line.find('\"') + 1] == ')':
+            dict_of_tokens[str(dictionaryIndex)] = ['symbols', ')', line_number, line.find('\"') + 1]
+            dictionaryIndex += 1
+        else:
+            dict_of_tokens[str(dictionaryIndex - 2)] = ['ERROR: Invalid multiline string', multilinestring, line_number, firstquotationIndex+ 1]
+            dictionaryIndex -= 1
+            ismultilinestring = False
+            return False, dict_of_tokens, dictionaryIndex, line_number
+
+        if line[line.find('\"') + 2] == ';':
+            dict_of_tokens[str(dictionaryIndex + 1)] = ['symbols', ';', line_number, line.find('\"') + 2]
+            dictionaryIndex += 1
+        else:
+            dict_of_tokens[str(dictionaryIndex - 2)] = ['ERROR: Invalid multiline string', multilinestring, line_number, firstquotationIndex + 1]
+            dictionaryIndex -= 1
+            ismultilinestring = False
+            return False, dict_of_tokens, dictionaryIndex, line_number
+        ismultilinestring = False
+
+    else:
+        multilinestring = multilinestring + line.strip()
+        dict_of_tokens[str(dictionaryIndex)] = ['string', multilinestring, line_number, 0]
+        line_number += 1
+
+    return ismultilinestring, dict_of_tokens, dictionaryIndex, line_number
+        
 
 def main(input_file):
 
@@ -479,10 +522,16 @@ def main(input_file):
     dictionaryIndex = 0
     line_number = 0
     comment = False
+    ismultilinestring = False
 
     for line in input_file:
+
+        if ismultilinestring == True:
+            ismultilinestring, dict_of_tokens, dictionaryIndex, line_number = multiline_string_evalulator(line, line_number, dict_of_tokens, dictionaryIndex, ismultilinestring)
+            continue
+         
         line_number += 1
         line = line.strip()
-        dict_of_tokens, dictionaryIndex, comment = main_tokenizer(line, line_number, dict_of_tokens, dictionaryIndex, comment)
+        dict_of_tokens, dictionaryIndex, comment, ismultilinestring = main_tokenizer(line, line_number, dict_of_tokens, dictionaryIndex, comment)
 
     return dict_of_tokens
