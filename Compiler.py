@@ -1,10 +1,11 @@
 '''
 -@author: Tyler Ray
--@date: 8/26/2023
+-@date: 8/29/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
 - ***WORK IN PROGRESS***
+- Finished with the tokenizer and our simple command line parser
 
 '''
 
@@ -46,30 +47,28 @@ def output_formatter(tokens):
     #Better formatting
     output = ""
     output2 = ""
-    output3 = ""
     error_output = ""
     lineno = 0
     for i in tokens:
-        output += "Token Number: " + str(i)
-        output += " - Token Type: " + tokens[i][0]
+        if "ERROR" in tokens[i][0]:
+            error_output += tokens[i][0] + ":\n\tline number,column number - " + str(tokens[i][2]) + "," + str(tokens[i][3]) + "\t\'" + tokens[i][1] + "\'" +  "\n"
+            continue
+
+        output += "Token Type: " + tokens[i][0]
         output += " - Token: " + str(tokens[i][1])
-        output += " - Line Number: " + str(tokens[i][2])
-        output += " - Column Number: " + str(tokens[i][3])
+        output += " - Line Number, Column Number: " + str(tokens[i][2]) + "," + str(tokens[i][3])
         output += "\n"
 
+        '''
         if lineno != tokens[i][2]:
             output2 += "\n"
-            output3 += "\n"
             lineno = tokens[i][2]
 
-        if "ERROR" in tokens[i][0]:
-            error_output += tokens[i][0] + " at line number - " + str(tokens[i][2]) + " column number - " + str(tokens[i][3]) + " line - \'" + tokens[i][1] + "\'" +  "\n"
-
         else:
-            output2 += "\'" + tokens[i][1] + "\' "
-            output3 += tokens[i][0] + " "
+            output2 += str(tokens[i][3]) + "\'" + tokens[i][1] + "\' "
+        '''
 
-    output += "\n\n\n" + output2 + "\n\n\n" + output3 + "\n\n\n"
+    output += "\n\n\n"
 
     return output, error_output
 
@@ -105,7 +104,5 @@ def main():
 
     if args.t: # if -t flag is used print out our tokens
        print(output_for_tokens)
-
-
 
 main()
