@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 8/29/2023
+-@date: 8/31/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
@@ -60,27 +60,18 @@ def output_formatter(tokens):
         output += "\n"
 
         '''
+        A pretty way to print out the tokens that represent the input file. Makes it easier to debug
         if lineno != tokens[i][2]:
             output2 += "\n"
             lineno = tokens[i][2]
 
-        else:
-            output2 += str(tokens[i][3]) + "\'" + tokens[i][1] + "\' "
-        '''
+        output2 += "\'" + tokens[i][1] + "\' "
 
-    output += "\n\n\n"
+    output += "\n\n\n" + output2 + "\n\n\n"
+        '''
 
     return output, error_output
 
-'''
-    Will be used if we ever want to only print errors and not tokens
-    if error_output != "":
-        output = error_output
-    else:
-        output += "\n\n\n" + output2 + "\n\n\n" + output3
-
-    return output
-'''
 
 # main function
 def main():

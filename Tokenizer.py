@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 8/29/2023
+-@date: 8/31/2023
 
 - Tokenizes our input file and returns a dictionary of tokens and their respective types
 
@@ -23,39 +23,27 @@ token_specifications = {    'symbols': r'\~|\@|\!|\$|\#|\^|\*|\%|\&|\(|\)|\[|\]|
                             'include': r'^[A-Za-z_]*[.][h]$'}
 
 #Will detect any type modifiers we have and will return the word if it is a keyword and how many characters to skip
-def type_modifier_detector(line, character, column_number): 
+def type_modifier_detector(line, column_number): 
     keyword = False
     skip = 0
 
-    if character == 's':
-        if not len(line) <= column_number + 5: #no OOB error
-            word_signed = character + line[column_number +1: column_number+6]
+    word = word_creator(line, column_number, 8)
 
-            word_short = character + line[column_number + 1: column_number+5]
+    if word[0:5] == 'short':
+        keyword = 'short'
+        skip = 4
+    
+    elif word[0:6] == 'signed':
+        keyword = 'signed'
+        skip = 5
 
-            if word_short == 'short':
-                keyword = 'short'
-                skip = 4
+    elif word[0:8] == 'unsigned':
+        keyword = 'unsigned'
+        skip = 7
 
-            elif word_signed == 'signed':
-                keyword = 'signed'
-                skip = 5
-
-    elif character == 'u':
-        if not len(line) <= column_number + 7:
-            word = character + line[column_number + 1:column_number+8] 
-
-            if word == 'unsigned':
-                keyword = 'unsigned'
-                skip = 7
-
-    elif character == 'l':
-        if not len(line) <= column_number + 3:
-            word = character + line[column_number + 1:column_number + 4]
-
-            if word == 'long':
-                keyword = 'long'
-                skip = 3        
+    elif word[0:4] == 'long':
+        keyword = 'long'
+        skip = 3        
 
     if keyword != False and line[column_number + skip + 1] == ' ': #if the type modifier doesn't have a space before and after it isn't a type
         if (column_number - 1) >= 0: #in the case it's the first word in the line
@@ -67,50 +55,29 @@ def type_modifier_detector(line, character, column_number):
     return False, 0
 
 #Will detect any types we have and will return the word if it is a keyword and how many characters to skip
-def type_detector(line, character, column_number):
+def type_detector(line, column_number):
     keyword = False
-    skip = 0
+    word = word_creator(line, column_number, 6)
 
-    if character == 'i':
-        if not len(line) <= column_number + 2:
-            word = character + line[column_number + 1:column_number + 3]
-
-            if word == 'int':
-                keyword = 'int'
-                skip = 2
+    if word[0:3] == 'int':
+        keyword = 'int'
+        skip = 2
         
-    elif character == 'c':
-        if not len(line) <= column_number + 3:
-            word = character + line[column_number + 1:column_number + 4]
-
-            if word == 'char':
-                keyword = 'char'
-                skip = 3
+    elif word[0:4] == 'char':
+        keyword = 'char'
+        skip = 3
         
-    elif character == 'v':
-        if not len(line) <= column_number + 3:
-            word = character + line[column_number + 1:column_number + 4]
-
-            if word == 'void':
-                keyword = 'void'
-                skip = 3
+    elif word[0:4] == 'void':
+        keyword = 'void'
+        skip = 3
         
-    elif character == 'f':
-        if not len(line) <= column_number + 3:
-            word = character + line[column_number + 1:column_number + 5]
-
-            if word == 'float':
-                keyword = 'float'
-                skip = 4
+    elif word[0:5] == 'float':
+        keyword = 'float'
+        skip = 4
         
-    elif character == 'd':
-        if not len(line) <= column_number + 5:
-            word = character + line[column_number + 1:column_number + 6]
-
-            if word == 'double':
-                keyword = 'double'
-                skip = 5
-    
+    elif word[0:6] == 'double':
+        keyword = 'double'
+        skip = 5
     
     if keyword != False and line[column_number + skip + 1] == ' ': #if the type doesn't have a space after it isn't a type
         if (column_number - 1) >= 0:
@@ -122,63 +89,39 @@ def type_detector(line, character, column_number):
     return False, 0 # return false if it is not a type
 
 #Will detect any keywords we have and will return the word if it is a keyword and how many characters to skip
-def keyword_detector(line, character, column_number):
+def keyword_detector(line, column_number):
     keyword = False
     skip = 0
 
-    if character == 'i':
-        if not len(line) <= column_number + 1: # Want to avoid OOB error
-            word = character + line[column_number + 1]
+    word = word_creator(line, column_number, 8)
 
-            if word == 'if':
-                keyword = 'if'
-                skip = 1
+    if word[0:2] == 'if':
+        keyword = 'if'
+        skip = 1
         
-    elif character == 'e':
-        if not len(line) <= column_number + 3:
-            word = character + line[column_number + 1:column_number + 4]
-
-            if word == 'else':
-                keyword = 'else'
-                skip = 3
+    elif word[0:4] == 'else':
+        keyword = 'else'
+        skip = 3
         
-    elif character == 'w':
-        if not len(line) <= column_number + 4:
-            word = character + line[column_number + 1:column_number + 4]
-
-            if word == 'while':
-                keyword = 'while'
-                skip = 4
+    elif word[0:5] == 'while':
+        keyword = 'while'
+        skip = 4
         
-    elif character == 'f':
-        if not len(line) <= column_number + 3:
-            word = character + line[column_number + 1:column_number + 3]
-
-            if word == 'for':
-                keyword = 'for'
-                skip = 2
+    elif word[0:3] == 'for':
+        keyword = 'for'
+        skip = 2
         
-    elif character == 'r':
-        if not len(line) <= column_number + 6:
-            word = character + line[column_number + 1:column_number + 5]
-            if word == 'return':
-                keyword = 'return'
-                skip = 5
+    elif word[0:6] == 'return':
+        keyword = 'return'
+        skip = 5
         
-    elif character == 'b':
-        if not len(line) <= column_number + 4:
-            word = character + line[column_number + 1:column_number + 4]
-
-            if word == 'break':
-                keyword = 'break'
-                skip = 4
+    elif word[0:5] == 'break':
+        keyword = 'break'
+        skip = 4
         
-    elif character == 'c':
-        if not len(line) <= column_number + 8:
-            word = character + line[column_number + 1:column_number + 8]
-            if word == 'continue':
-                keyword = 'continue'
-                skip = 7
+    elif word[0:8] == 'continue':
+        keyword = 'continue'
+        skip = 7
 
     if keyword != False and (line[column_number + skip + 1] == ' ' or line[column_number + skip + 1] == '('): # if the keyword doesn't have a space after it isn't a keyword
         if column_number - 1 >= 0:
@@ -187,8 +130,38 @@ def keyword_detector(line, character, column_number):
             
         else: #if the keyword is at the beginning of the line
             return keyword, skip
+        
     return False, 0
 
+#Will walk through the line and create a word based on the maximum length that is allowed
+def word_creator(line, column_number, total_length_of_allowed_word):
+    skip = 0
+    i = column_number
+    word = ''
+
+    while skip < total_length_of_allowed_word: #We want to go through the entire type length and add it to a string, we want to make sure we can hit the shorter words
+        if i >= len(line):
+            break
+
+        word = word + line[i]
+        i += 1
+        skip += 1
+
+    return word
+
+#checks when we see a type before an identifier and validates it is a valid way to call a function or decleration
+def check_for_type(identifier, i, notskippingthesymbol, line):
+    if identifier[i] == '=' or identifier[i] == ' ':
+        skip_amount = i - notskippingthesymbol
+        return identifier[:i], skip_amount
+    
+    elif identifier[i] == '(' and identifier.find(')') > i:
+        skip_amount = i - notskippingthesymbol
+        return identifier[:i], skip_amount
+    else:
+        skip_amount = len(line)
+        return False, skip_amount
+    
 #Will evaluate if the identifier is valid or not then return the valid identifer and how many characters to skip over or False if it isn't one
 def identifier_detector(line, character, column_number, dict_of_tokens, dictionaryIndex):
     identifier = character
@@ -210,17 +183,8 @@ def identifier_detector(line, character, column_number, dict_of_tokens, dictiona
             if  re.match(token_specifications['symbols'], identifier[i]):
                 
                 if dict_of_tokens[str(dictionaryIndex-1)][0] == 'type': #decleration, we need to account for function names
-
-                    if identifier[i] == '=' or identifier[i] == ' ':
-                        skip_amount = i - notskippingthesymbol
-                        return identifier[:i], skip_amount
-                    
-                    elif identifier[i] == '(' and identifier.find(')') > i:
-                        skip_amount = i - notskippingthesymbol
-                        return identifier[:i], skip_amount
-                    else:
-                        skip_amount = len(line)
-                        return False, skip_amount
+                    identifier, skip_amount = check_for_type(identifier, i, notskippingthesymbol, line)
+                    return identifier, skip_amount 
                     
                 else: #it is a function call or statement, so we want to return the identifier and skip over the symbol
                     skip_amount = i - notskippingthesymbol
@@ -232,9 +196,9 @@ def identifier_detector(line, character, column_number, dict_of_tokens, dictiona
 def character_tokenizer(line, character, column_number, line_number, dict_of_tokens, dictionaryIndex):
     skip = 0
 
-    type_detection, skip_amount_type = type_detector(line, character, column_number) # check if the character is a type
-    keyword_detection, skip_amount_keyword = keyword_detector(line, character, column_number) # check if the character is a keyword
-    type_modifier_detection, skip_amount_type_modifier = type_modifier_detector(line, character, column_number) # check if the character is a type modifier
+    type_detection, skip_amount_type = type_detector(line, column_number) # check if the character is a type
+    keyword_detection, skip_amount_keyword = keyword_detector(line, column_number) # check if the character is a keyword
+    type_modifier_detection, skip_amount_type_modifier = type_modifier_detector(line, column_number) # check if the character is a type modifier
     identifier, skip_amount = identifier_detector(line, character, column_number, dict_of_tokens, dictionaryIndex) # check if the character is an identifier
 
     if type_modifier_detection != False: # if it is a type modifier
@@ -300,11 +264,12 @@ def string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionar
             i += 1
 
     if i >= len(line): #If we don't find the second quotation mark, it could be on the next line......... or it is an invalid string
-        ismultilineString = True
         dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid string', line, line_number, column_number] # A placeholder if we can't find the second quotation mark
 
-        dictionaryIndex += 1
-        dict_of_tokens[str(dictionaryIndex)] = ['string', word, line_number, column_number]
+        if line[-1] == '\\': #If the last character is a backslash, we know it is a multiline string
+            ismultilineString = True
+            dictionaryIndex += 1
+            dict_of_tokens[str(dictionaryIndex)] = ['string', word, line_number, column_number]
 
         return dict_of_tokens, dictionaryIndex, skip, ismultilineString # we are going to search in the main loop, best way to look through lines
     
@@ -346,6 +311,25 @@ def include_tokenizer(line, column_number, line_number, dict_of_tokens, dictiona
     dictionaryIndex += 1
     return dict_of_tokens, dictionaryIndex, skip
 
+#Will look for any special starting tokens, such as #include, "strings, and characters
+def looking_for_special_starting_tokens(line, column_number, line_number, dict_of_tokens, dictionaryIndex):
+    multilinestring = False
+    skip = 0
+    character = line[column_number]
+    if character == '<' and dict_of_tokens[str(dictionaryIndex - 1)][1] == 'include': #If we have a #include, we want to skip over the entire line
+        dictionaryIndex += 1
+        dict_of_tokens, dictionaryIndex, skip = include_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex)
+
+    elif character == '\"' and line[column_number -1] != "\\": #Tokenize strings
+        dictionaryIndex += 1
+        dict_of_tokens, dictionaryIndex, skip, multilinestring = string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex) #We want to add the entire string as a token
+    
+    elif character == '\'' and line[column_number - 1] != "\\":
+        dict_of_tokens, dictionaryIndex, skip = char_type_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex)
+
+
+    return dict_of_tokens, dictionaryIndex, skip, multilinestring
+
 #Tokenizes our symbols, will also tokenize our comments and strings. Will look out for multiline strings and multiline comments
 def symbol_tokenizer(line, character, column_number, line_number, dict_of_tokens, dictionaryIndex):
     #If we hit the symbol tokenizer, we know there is no way it's invalid so we include it in the dictionary
@@ -371,17 +355,8 @@ def symbol_tokenizer(line, character, column_number, line_number, dict_of_tokens
             
         else: 
             dict_of_tokens[str(dictionaryIndex)] = ['symbols', character, line_number, column_number]
-            if character == '<' and dict_of_tokens[str(dictionaryIndex - 1)][1] == 'include': #If we have a #include, we want to skip over the entire line
-                dictionaryIndex += 1
-                dict_of_tokens, dictionaryIndex, skip = include_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex)
-
-            elif character == '\"' and line[column_number -1] != "\\": #Tokenize strings
-                dictionaryIndex += 1
-                dict_of_tokens, dictionaryIndex, skip, multilinestring = string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex) #We want to add the entire string as a token
-           
-            elif character == '\'' and line[column_number - 1] != "\\":
-                dict_of_tokens, dictionaryIndex, skip = char_type_tokenizer(line, column_number, line_number, dict_of_tokens, dictionaryIndex)
-
+            dict_of_tokens, dictionaryIndex, skip, multilinestring = looking_for_special_starting_tokens(line, column_number, line_number, dict_of_tokens, dictionaryIndex)
+            
     return dict_of_tokens, dictionaryIndex, skip, column_number, comment, multilinestring
 
 
@@ -436,6 +411,31 @@ def hexidecmial_validator(dict_of_tokens, line,  number, dictionaryIndex, line_n
         dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid hexidecimal', line, line_number, column_number]
         skip = len(line)
         return dict_of_tokens, skip
+
+
+#goes through a nonvalid number and looks for first symbol to see if it is being used within a operation or if it is an assignment
+def looking_for_first_non_number(line, column_number, line_number, dict_of_tokens, dictionaryIndex, number, skip):
+    numberchecker = ''
+    for i in range(len(number)):
+        numberchecker = numberchecker + number[i]
+        if numberchecker.isdigit(): #Continue if it is a valid number
+            continue
+
+        elif re.match(token_specifications['symbols'], numberchecker[i]): #Once we hit a symbol, we need to check and see if it a decmial or not
+            if number[i] == '.': #double/float detection
+                dict_of_tokens, skip = float_validator(dict_of_tokens, line, number, dictionaryIndex, line_number, column_number, skip, i)
+                return dict_of_tokens, skip
+                        
+            else: #if it is a random symbol, more than likely it is an assignment and we can just add the number
+                dict_of_tokens[str(dictionaryIndex)] = ['number', numberchecker[:i], line_number, column_number]
+                skip = len(numberchecker[:i]) - 1
+                return dict_of_tokens, skip
+        else:
+            dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid number', line, line_number, column_number]
+            skip = len(line)
+            return dict_of_tokens, skip
+        
+    return dict_of_tokens, 0
     
 #Our main number otkenizer, if it shows signs of being a float or hexidecimal, we will call the appropriate function
 def number_tokenizer(line, character, column_number, line_number, dict_of_tokens, dictionaryIndex):
@@ -467,28 +467,9 @@ def number_tokenizer(line, character, column_number, line_number, dict_of_tokens
         return dict_of_tokens, skip
     
     else: #we are going to go through the entire string until we find a non number character, if it is a symbol. we know that the number is valid and it is an operation with no space
-        numberchecker = ''
-        for i in range(len(number)):
-            numberchecker = numberchecker + number[i]
-            if numberchecker.isdigit(): #Continue if it is a valid number
-                continue
-
-            elif re.match(token_specifications['symbols'], numberchecker[i]): #Once we hit a symbol, we need to check and see if it a decmial or not
-                if number[i] == '.': #double/float detection
-                    dict_of_tokens, skip = float_validator(dict_of_tokens, line, number, dictionaryIndex, line_number, column_number, skip, i)
-                    return dict_of_tokens, skip
-                         
-                else: #if it is a random symbol, more than likely it is an assignment and we can just add the number
-                    dict_of_tokens[str(dictionaryIndex)] = ['number', numberchecker[:i], line_number, column_number]
-                    skip = len(numberchecker[:i]) - 1
-                    return dict_of_tokens, skip
-            else:
-                dict_of_tokens[str(dictionaryIndex)] = ['ERROR: invalid number', line, line_number, column_number]
-                skip = len(line)
-                return dict_of_tokens, skip
-
-    return dict_of_tokens, 0
-    
+        dict_of_tokens, skip = looking_for_first_non_number(line, column_number, line_number, dict_of_tokens, dictionaryIndex, number, skip)
+        return dict_of_tokens, skip
+        
 
 # Our overall main tokenizer function, calls the appropriate functions for tokenizing depending on the character it is given. Skips over whitespaces
 def main_tokenizer(line, line_number, dict_of_tokens, dictionaryIndex, comment):
@@ -527,9 +508,32 @@ def main_tokenizer(line, line_number, dict_of_tokens, dictionaryIndex, comment):
 
     return dict_of_tokens, dictionaryIndex, comment, ismultilinestring
 
+
+#validating the end of ourmultiline has a ); we do not allow for string formatting on multilines
+def end_of_multiline_validation(line, line_number, dict_of_tokens, dictionaryIndex, multilinestring, firstquotationIndex):
+
+    if line[line.find('\"') + 1] == ')': #hoepfully the string actually ends. 
+        dict_of_tokens[str(dictionaryIndex)] = ['symbols', ')', line_number, line.find('\"') + 1]
+        dictionaryIndex += 1
+    else:
+        dict_of_tokens[str(dictionaryIndex - 2)] = ['ERROR: Invalid multiline string', multilinestring, line_number, firstquotationIndex+ 1]
+        dictionaryIndex -= 1 #roll the index back and override
+        return dict_of_tokens, dictionaryIndex, line_number
+
+    if line[line.find('\"') + 2] == ';':
+        dict_of_tokens[str(dictionaryIndex + 1)] = ['symbols', ';', line_number, line.find('\"') + 2]
+        dictionaryIndex += 1
+    else:
+        dict_of_tokens[str(dictionaryIndex - 2)] = ['ERROR: Invalid multiline string', multilinestring, line_number, firstquotationIndex + 1]
+        dictionaryIndex -= 1
+        return dict_of_tokens, dictionaryIndex, line_number
+    
+    return dict_of_tokens, dictionaryIndex, line_number
+    
 #used to look for the end of a multiline string
 def multiline_string_evalulator(line, line_number, dict_of_tokens, dictionaryIndex, ismultilinestring):
-    multilinestring = dict_of_tokens[str(dictionaryIndex -1)][1]
+    multilinestring = dict_of_tokens[str(dictionaryIndex -1)][1].strip()
+    line=line.strip()
 
     if '\"' in line:
         multilinestring = multilinestring + line[:line.find('\"')]
@@ -539,31 +543,20 @@ def multiline_string_evalulator(line, line_number, dict_of_tokens, dictionaryInd
         dict_of_tokens[str(dictionaryIndex -2)] = ['string', multilinestring, line_number, firstquotationIndex + 1] #wnt to override the placeholder error token
 
         dict_of_tokens[str(dictionaryIndex -1)] = ['symbols', '\"', line_number, line.find('\"')] #add the final " to the tokens
-
-        if line[line.find('\"') + 1] == ')': #hoepfully the string actually ends. 
-            dict_of_tokens[str(dictionaryIndex)] = ['symbols', ')', line_number, line.find('\"') + 1]
-            dictionaryIndex += 1
-        else:
-            dict_of_tokens[str(dictionaryIndex - 2)] = ['ERROR: Invalid multiline string', multilinestring, line_number, firstquotationIndex+ 1]
-            dictionaryIndex -= 1 #roll the index back and override
-            ismultilinestring = False
-            return False, dict_of_tokens, dictionaryIndex, line_number
-
-        if line[line.find('\"') + 2] == ';':
-            dict_of_tokens[str(dictionaryIndex + 1)] = ['symbols', ';', line_number, line.find('\"') + 2]
-            dictionaryIndex += 1
-        else:
-            dict_of_tokens[str(dictionaryIndex - 2)] = ['ERROR: Invalid multiline string', multilinestring, line_number, firstquotationIndex + 1]
-            dictionaryIndex -= 1
-            ismultilinestring = False
-            return False, dict_of_tokens, dictionaryIndex, line_number
         
         ismultilinestring = False
 
-    else:
+        dict_of_tokens, dictionaryIndex, line_number = end_of_multiline_validation(line, line_number, dict_of_tokens, dictionaryIndex, multilinestring, firstquotationIndex)
+
+    elif line[-1:] == '\\': #if the last character is a backslash, we know it is a multiline string]:
         multilinestring = multilinestring + line.strip()
-        dict_of_tokens[str(dictionaryIndex)] = ['string', multilinestring, line_number, 0]
+        dict_of_tokens[str(dictionaryIndex - 1)] = ['string', multilinestring, line_number, 0]
         line_number += 1
+    else:
+        dict_of_tokens[str(dictionaryIndex - 2)] = ['ERROR: Invalid multiline string', multilinestring, line_number, 0]
+        dictionaryIndex -= 1
+        line_number += 1
+        ismultilinestring = False
 
     return ismultilinestring, dict_of_tokens, dictionaryIndex, line_number
         
@@ -581,7 +574,7 @@ def main(input_file):
         if ismultilinestring == True:
             ismultilinestring, dict_of_tokens, dictionaryIndex, line_number = multiline_string_evalulator(line, line_number, dict_of_tokens, dictionaryIndex, ismultilinestring)
             continue
-         
+        
         line_number += 1
         line = line.strip()
         dict_of_tokens, dictionaryIndex, comment, ismultilinestring = main_tokenizer(line, line_number, dict_of_tokens, dictionaryIndex, comment)

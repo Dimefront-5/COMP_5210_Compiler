@@ -6,4 +6,4 @@ whitespace: not to be tokenized
 identifiers: r'^[a-zA-Z_][\w_]*$'
 numbers: r'^[\d]+$ | ^[\d]*\.[\d]+$' | ^0[xX][\dA-Fa-f]+$' **No negative numbers**
 include: r'^[A-Za-z_]*[.][h]$'
-Allows multiline strings
+Allows multiline strings, only if they don't allow for variable printing
