@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 8/31/2023
+-@date: 9/6/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
@@ -31,20 +31,18 @@ def command_line_parser():
 
 def validity_check(possible_input_file):
     
-    if not os.path.isfile(possible_input_file): # check if file exists
+    if not os.path.isfile(possible_input_file):
         print("Please check to see if the file exists and is stored in the same directory as the compiler")
         sys.exit()
 
-    if possible_input_file[-2:] != ".c": # check if file is a c file
+    if possible_input_file[-2:] != ".c": 
         print("Please input a valid c file to compile")
         sys.exit()
 
     return
 
-#Might be a better way to format this, but this works for now
 def output_formatter(tokens):
 
-    #Better formatting
     output = ""
     output2 = ""
     error_output = ""
@@ -82,7 +80,7 @@ def main():
 
     validity_check(possible_input_file)
 
-    input_file = open(possible_input_file, "r") # open file
+    input_file = open(possible_input_file, "r")
 
     tokens = tk.main(input_file)
 
@@ -93,7 +91,8 @@ def main():
         print(error_output)
         sys.exit()
 
-    if args.t: # if -t flag is used print out our tokens
+    if args.t:
        print(output_for_tokens)
 
-main()
+if __name__ == "__main__":
+    main()
