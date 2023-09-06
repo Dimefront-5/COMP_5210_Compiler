@@ -24,6 +24,8 @@ def command_line_parser():
 
     parser.add_argument('-t', action="store_true", help='outputs a tokenized version of the input file')
 
+    parser.add_argument('-p', action="store_true", help='outputs a parse tree of the input file' )
+
     args = parser.parse_args()
 
     return args

@@ -18,6 +18,8 @@ int main() {
     signed long aiojegsa124231 = 0x214639B;
     long long hello=0x123456789ABCDE;
 
+    int i = 10 *2 + 3 / 4 - 5 % 6;
+
     ch='B';
 
     char __712346__ = 'A';

@@ -13,6 +13,8 @@ Key = [0, n]
 import re
 #Our specifications of tokens
 token_specifications = {    'symbols': r'\~|\@|\!|\$|\#|\^|\*|\%|\&|\(|\)|\[|\]|\{|\}|\<|\>|\+|\=|\-|\||\/|\\|\;|\:|\'|\"|\,|\.|\?',
+                            'mulOP': r'\*|\/|\%',
+                            'addOP': r'\+|\-',
                             'double_symbols': r'\=\=|\<\=|\>\=|\!\=|\&\&|\|\||\/\/|\/\*|\*\/|\+\+|\-\-',
                             'types': r'int|float|char|void|double',
                             'type_modifiers': r'signed|unsigned|long|short',
@@ -351,9 +353,16 @@ def symbol_tokenizer(line, character, column_number, line_number, dict_of_tokens
             else:
                 skip = 1
             
-        else: 
-            dict_of_tokens[str(dictionaryIndex)] = ['symbols', character, line_number, column_number]
-            dict_of_tokens, dictionaryIndex, skip, multilinestring = looking_for_special_starting_tokens(line, column_number, line_number, dict_of_tokens, dictionaryIndex)
+        else:
+            if re.match(token_specifications['mulOP'], character) and dict_of_tokens[str(dictionaryIndex - 1)][0] != 'type': #want to allow for pointers and not think of it as a mulOP
+                dict_of_tokens[str(dictionaryIndex)] = ['mulOP', character, line_number, column_number]
+                
+            elif re.match(token_specifications['addOP'], character):
+                dict_of_tokens[str(dictionaryIndex)] = ['addOP', character, line_number, column_number]
+
+            else:
+                dict_of_tokens[str(dictionaryIndex)] = ['symbols', character, line_number, column_number]
+                dict_of_tokens, dictionaryIndex, skip, multilinestring = looking_for_special_starting_tokens(line, column_number, line_number, dict_of_tokens, dictionaryIndex)
             
     return dict_of_tokens, dictionaryIndex, skip, column_number, comment, multilinestring
 
