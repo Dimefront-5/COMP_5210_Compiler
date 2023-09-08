@@ -26,8 +26,34 @@ def parser(tokens):
 def parse_expr(tokens, i, RecentNode):
     return
 
-def parse_term(tokens, i , RecentNode):
+
+
+def parse_term_mulOP(tokens, i, RecentNode, mulOP, temporaryIndex):
     termNode = ASTNode("Term")
+
+    items = list(tokens.items())
+    beforeMulOP = items[:temporaryIndex]
+    afterMulOP = items[temporaryIndex+1:]
+    beforeMulOPTokens = dict(beforeMulOP)
+    afterMulOPTokens = dict(afterMulOP)
+
+    termNode = parse_term(beforeMulOPTokens, str(i), termNode)
+
+    if termNode == False:
+        return False
+    
+    RecentNode.add_child(termNode)
+
+    RecentNode.add_child(ASTNode(mulOP))
+
+    factorNode = ASTNode("Factor")
+    factorNode = (parse_factor(afterMulOPTokens, str(temporaryIndex+1), factorNode))
+    RecentNode.add_child(factorNode)
+
+    return RecentNode
+    
+    
+def parse_term(tokens, i , RecentNode):
     mulOP = ''
     i = int(i)
     temporaryIndex = i
@@ -39,20 +65,7 @@ def parse_term(tokens, i , RecentNode):
             break
 
     if mulOP != '': #if there is a multiplication or division operator
-        items = list(tokens.items())
-        beforeMulOP = items[:temporaryIndex]
-        afterMulOP = items[temporaryIndex+1:]
-        beforeMulOPTokens = dict(beforeMulOP)
-        afterMulOPTokens = dict(afterMulOP)
-
-        termNode = parse_term(beforeMulOPTokens, str(i), termNode)
-        if termNode == False:
-            return False
-        RecentNode.add_child(termNode)
-        RecentNode.add_child(ASTNode(mulOP))
-        factorNode = ASTNode("Factor")
-        factorNode = (parse_factor(afterMulOPTokens, str(temporaryIndex+1), factorNode))
-        RecentNode.add_child(factorNode)
+        RecentNode = parse_term_mulOP(tokens, i, RecentNode, mulOP, temporaryIndex)
 
 
     else:
@@ -66,6 +79,7 @@ def parse_term(tokens, i , RecentNode):
     return RecentNode
 
 def parse_factor(tokens, i, RecentNode): 
+    
     if tokens[i][0] == "number":
         numberNode = ASTNode(tokens[i][1])
         RecentNode.add_child(numberNode)
