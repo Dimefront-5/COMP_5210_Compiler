@@ -451,6 +451,10 @@ def number_tokenizer(line, character, column_number, line_number, dict_of_tokens
     index = column_number + 1
     ishexidecimal = False
 
+    if len(line) <= column_number + 1:
+        dict_of_tokens[str(dictionaryIndex)] = ['number', number, line_number, column_number]
+        return dict_of_tokens, skip
+    
     if line[index] == 'x' and line[column_number] == '0': #hexidecmial notation
         ishexidecimal = True
         number = number + line[index]

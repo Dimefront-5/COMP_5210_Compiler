@@ -13,6 +13,7 @@ import Tokenizer as tk
 import argparse
 import sys
 import os
+import Parser as ps
 
 
 #Built in help command. Only flag we need it -t
@@ -43,12 +44,10 @@ def validity_check(possible_input_file):
 
     return
 
-def output_formatter(tokens):
+def output_formatter_for_tokens(tokens):
 
     output = ""
-    output2 = ""
     error_output = ""
-    lineno = 0
     for i in tokens:
         if "ERROR" in tokens[i][0]:
             error_output += tokens[i][0] + ":\n\tline number,column number - " + str(tokens[i][2]) + "," + str(tokens[i][3]) + "\t\'" + tokens[i][1] + "\'" +  "\n"
@@ -72,7 +71,6 @@ def output_formatter(tokens):
 
     return output, error_output
 
-
 # main function
 def main():
     
@@ -86,7 +84,9 @@ def main():
 
     tokens = tk.main(input_file)
 
-    output_for_tokens, error_output = output_formatter(tokens)
+    parsetree = ps.parser(tokens)
+
+    output_for_tokens, error_output = output_formatter_for_tokens(tokens)
 
     if error_output != "":
         print("Errors found in ", possible_input_file, ":\n\n")
@@ -94,7 +94,10 @@ def main():
         sys.exit()
 
     if args.t:
-       print(output_for_tokens)
+        print(output_for_tokens)
+
+    if args.p:
+       print(parsetree)
 
 if __name__ == "__main__":
     main()
