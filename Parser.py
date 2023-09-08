@@ -19,14 +19,14 @@ grammar = {
 
 def parser(tokens):
     parseTree = ASTNode("Expr")
-    parse_term(tokens, str(0), parseTree)
+    parseTree.add_child(parse_term(tokens, str(0), ASTNode("Term")))
     return parseTree
 
 
 def parse_expr(tokens, i, RecentNode):
     return
 
-def parse_term(tokens, i , RecentNode): #Not working
+def parse_term(tokens, i , RecentNode):
     termNode = ASTNode("Term")
     mulOP = ''
     i = int(i)
@@ -48,18 +48,20 @@ def parse_term(tokens, i , RecentNode): #Not working
         termNode = parse_term(beforeMulOPTokens, str(i), termNode)
         if termNode == False:
             return False
-        
         RecentNode.add_child(termNode)
         RecentNode.add_child(ASTNode(mulOP))
         factorNode = ASTNode("Factor")
-        RecentNode.add_child(parse_factor(afterMulOPTokens, str(temporaryIndex+1), factorNode))
+        factorNode = (parse_factor(afterMulOPTokens, str(temporaryIndex+1), factorNode))
+        RecentNode.add_child(factorNode)
+
 
     else:
         factorNode = ASTNode("Factor")
-        termNode = parse_factor(tokens, str(i), factorNode)
-        if termNode == False:
+        factorNode = parse_factor(tokens, str(i), factorNode)
+        if factorNode == False:
             return False
-        RecentNode.add_child(termNode)
+
+        RecentNode.add_child(factorNode)
 
     return RecentNode
 
