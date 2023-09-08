@@ -18,7 +18,6 @@ grammar = {
 
 
 def parser(tokens):
-    print(tokens)
     parseTree = ASTNode("Expr")
     parse_term(tokens, str(0), parseTree)
     return parseTree
@@ -29,28 +28,39 @@ def parse_expr(tokens, i, RecentNode):
 
 def parse_term(tokens, i , RecentNode): #Not working
     termNode = ASTNode("Term")
+    mulOP = ''
     i = int(i)
-    print(tokens[str(i+1)][1], i)
-    if tokens[str(i+1)][1] == "*":
-        i+= 1
-        print(tokens)
-        termNode = parse_term(tokens, str(i), termNode)
-        RecentNode.add_child(termNode)
-        RecentNode.add_child(ASTNode("*"))
-        factorNode = parse_factor(tokens, str(2), RecentNode)
-        RecentNode.add_child(factorNode)
-        return RecentNode
+    temporaryIndex = i
 
-    elif tokens[str(i+1)][1] == "/":
-        parse_term(tokens, i, termNode)
-        RecentNode.add_child(ASTNode("/"))
-    else:
-        print(tokens)
-        termNode = parse_factor(tokens, str(i), termNode)
+    for keyIndex in tokens:
+        if tokens[keyIndex][1] == "*" or tokens[keyIndex][1] == "/":
+            temporaryIndex = int(keyIndex)
+            mulOP = tokens[keyIndex][1]
+            break
+
+    if mulOP != '': #if there is a multiplication or division operator
+        items = list(tokens.items())
+        beforeMulOP = items[:temporaryIndex]
+        afterMulOP = items[temporaryIndex+1:]
+        beforeMulOPTokens = dict(beforeMulOP)
+        afterMulOPTokens = dict(afterMulOP)
+
+        termNode = parse_term(beforeMulOPTokens, str(i), termNode)
         if termNode == False:
             return False
-    
-    RecentNode.add_child(termNode)
+        
+        RecentNode.add_child(termNode)
+        RecentNode.add_child(ASTNode(mulOP))
+        factorNode = ASTNode("Factor")
+        RecentNode.add_child(parse_factor(afterMulOPTokens, str(temporaryIndex+1), factorNode))
+
+    else:
+        factorNode = ASTNode("Factor")
+        termNode = parse_factor(tokens, str(i), factorNode)
+        if termNode == False:
+            return False
+        RecentNode.add_child(termNode)
+
     return RecentNode
 
 def parse_factor(tokens, i, RecentNode): 
@@ -68,6 +78,7 @@ def parse_factor(tokens, i, RecentNode):
         RecentNode.add_child(ASTNode("("))
 
         expr = parse_expr(tokens[1:])
+        RecentNode.add_child(expr)
 
         tokens = tokens[len(expr):]
 
