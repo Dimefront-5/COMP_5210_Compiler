@@ -5,7 +5,7 @@
 - Will parse through our token list and output a parse tree
 - ***WORK IN PROGRESS***
 '''
-
+import sys 
 #grammar for our parser
 grammar = {
     'Expr': ['Expr + Term', 'Expr - Term', 'Term'],
@@ -18,24 +18,78 @@ grammar = {
 
 
 def parser(tokens):
+    #print(tokens)
     parseTree = ASTNode("Expr")
-    parseTree.add_child(parse_term(tokens, str(0), ASTNode("Term")))
+    parseTree = parse_expr(tokens, str(0), parseTree)
     return parseTree
 
 
+def parse_expr_addOP(tokens, i, RecentNode, addOP, index_of_addOP):
+    exprNode = ASTNode("Expr")
+
+    items = list(tokens.items())
+    beforeAddOP = items[:index_of_addOP]
+    afterAddOP = items[index_of_addOP+1:]
+
+    beforeAddOPTokens = dict(beforeAddOP)
+    afterAddOPTokens = dict(afterAddOP)
+    #print(beforeAddOPTokens, afterAddOPTokens)
+
+    exprNode = parse_expr(beforeAddOPTokens, str(i), exprNode)
+
+    if exprNode == False:
+        return False
+    
+    RecentNode.add_child(exprNode)
+    RecentNode.add_child(ASTNode(addOP))
+
+    #print(RecentNode)
+
+    termNode = ASTNode("Term")
+    #print(afterAddOPTokens, str(index_of_addOP+1))
+    termNode = parse_term(afterAddOPTokens, str(index_of_addOP+1), termNode)
+    RecentNode.add_child(termNode)
+
+    return RecentNode
+
 def parse_expr(tokens, i, RecentNode):
-    return
+    addOP = ''
+    i = int(i)
+    index_of_addOP = 0
+    index_of_last_addOP = 0
+
+    for keyIndex in tokens:
+        if tokens[keyIndex][1] == "+" or tokens[keyIndex][1] == "-":
+            index_of_last_addOP = index_of_addOP
+            #print(index_of_last_addOP, index_of_addOP, "index of addOP")
+            addOP = tokens[keyIndex][1]
+        index_of_addOP += 1
+
+    if addOP != '':
+        #print("here")
+        RecentNode = parse_expr_addOP(tokens, i, RecentNode, addOP, index_of_last_addOP)
+
+    else:
+        termNode = ASTNode("Term")
+        termNode = parse_term(tokens, str(i), termNode)
+        if termNode == False:
+            return False
+        RecentNode.add_child(termNode)
+
+    return RecentNode
 
 
 
-def parse_term_mulOP(tokens, i, RecentNode, mulOP, temporaryIndex):
+def parse_term_mulOP(tokens, i, RecentNode, mulOP, index_of_mulOP, keyIndex):
     termNode = ASTNode("Term")
 
     items = list(tokens.items())
-    beforeMulOP = items[:temporaryIndex]
-    afterMulOP = items[temporaryIndex+1:]
+    beforeMulOP = items[:index_of_mulOP]
+    afterMulOP = items[index_of_mulOP+1:]
     beforeMulOPTokens = dict(beforeMulOP)
     afterMulOPTokens = dict(afterMulOP)
+
+    #print(beforeMulOPTokens, afterMulOPTokens, i)
 
     termNode = parse_term(beforeMulOPTokens, str(i), termNode)
 
@@ -43,11 +97,11 @@ def parse_term_mulOP(tokens, i, RecentNode, mulOP, temporaryIndex):
         return False
     
     RecentNode.add_child(termNode)
-
     RecentNode.add_child(ASTNode(mulOP))
 
     factorNode = ASTNode("Factor")
-    factorNode = (parse_factor(afterMulOPTokens, str(temporaryIndex+1), factorNode))
+    
+    factorNode = (parse_factor(afterMulOPTokens, str(int(keyIndex) + 1), factorNode))
     RecentNode.add_child(factorNode)
 
     return RecentNode
@@ -56,16 +110,20 @@ def parse_term_mulOP(tokens, i, RecentNode, mulOP, temporaryIndex):
 def parse_term(tokens, i , RecentNode):
     mulOP = ''
     i = int(i)
-    temporaryIndex = i
+    index_of_mulOP = 0
+    index_of_last_mulOP = 0
 
+    KeyIndex_for_after_token_split = str(0)
     for keyIndex in tokens:
         if tokens[keyIndex][1] == "*" or tokens[keyIndex][1] == "/":
-            temporaryIndex = int(keyIndex)
-            mulOP = tokens[keyIndex][1]
-            break
-
+            mulOP = tokens[str(keyIndex)][1]
+            index_of_last_mulOP = index_of_mulOP
+            KeyIndex_for_after_token_split = keyIndex
+        index_of_mulOP += 1
+        
+    #print(mulOP, index_of_last_mulOP)
     if mulOP != '': #if there is a multiplication or division operator
-        RecentNode = parse_term_mulOP(tokens, i, RecentNode, mulOP, temporaryIndex)
+        RecentNode = parse_term_mulOP(tokens, i, RecentNode, mulOP, index_of_last_mulOP, KeyIndex_for_after_token_split)
 
 
     else:
@@ -79,7 +137,8 @@ def parse_term(tokens, i , RecentNode):
     return RecentNode
 
 def parse_factor(tokens, i, RecentNode): 
-    
+    #print(i)
+    #print(tokens)
     if tokens[i][0] == "number":
         numberNode = ASTNode(tokens[i][1])
         RecentNode.add_child(numberNode)
