@@ -460,8 +460,8 @@ def number_tokenizer(line, character, column_number, line_number, dict_of_tokens
         number = number + line[index]
         index += 1
         skip += 1
-    
-    while index < len(line) - 1:
+
+    while index < len(line):
         if line[index] == ' ':
             break
         else:

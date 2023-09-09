@@ -97,7 +97,11 @@ def main():
         print(output_for_tokens)
 
     if args.p:
-       print(parsetree)
+        if parsetree == False:
+           print("Errors found in ", possible_input_file, ":")
+           print("\tSyntax Error")
+        else:
+            print(parsetree)
 
 if __name__ == "__main__":
     main()
