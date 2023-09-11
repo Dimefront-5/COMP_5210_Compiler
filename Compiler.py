@@ -9,10 +9,12 @@
 '''
 
 import Tokenizer as tk
+import Parser as ps
+
 import argparse
 import sys
 import os
-import Parser as ps
+
 
 
 #Built in help command. 
@@ -34,7 +36,7 @@ def command_line_parser():
 def validity_check(possible_input_file):
     
     if not os.path.isfile(possible_input_file):
-        print("Please check to see if the file exists and is stored in the same directory as the compiler")
+        print("Please check to see if the file exists, this is an invalid file path")
         sys.exit()
 
     if possible_input_file[-2:] != ".c": 
@@ -98,7 +100,7 @@ def main():
     if args.p:
         if parsetree == False:
            print("Errors found in ", possible_input_file, ":")
-           print("\tSyntax Error")
+           print("\tSyntax Error\n\n")
         else:
             print(parsetree)
 
