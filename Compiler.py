@@ -1,12 +1,11 @@
 '''
 -@author: Tyler Ray
--@date: 9/6/2023
+-@date: 9/9/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
 - ***WORK IN PROGRESS***
-- Finished with the tokenizer and our simple command line parser
-
+- Finished: Tokenizer, Parser
 '''
 
 import Tokenizer as tk
@@ -16,7 +15,7 @@ import os
 import Parser as ps
 
 
-#Built in help command. Only flag we need it -t
+#Built in help command. 
 def command_line_parser():
 
     parser = argparse.ArgumentParser(description='a custom python compiler for c files')
