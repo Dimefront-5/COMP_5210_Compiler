@@ -3,9 +3,10 @@
 -@date: 9/11/2023
 
 - Will parse through our token list and output a parse tree
+- Only works for expr as of right now
 - ***WORK IN PROGRESS***
 '''
-import compilerConstants as cc
+import CompilerConstants as cc
 
 #grammar for our parser
 grammar = {
@@ -27,7 +28,7 @@ class ASTNode:
         self.children.append(child_node)
 
     def __str__(self, level=0):
-        result = "-" * level + self.value + "\n"
+        result = "\t" * level + self.value + "\n"
 
         for child in self.children:
             result += child.__str__(level + 1)
@@ -38,6 +39,7 @@ class ASTNode:
 #main function for the parser
 def parser(tokens):
     parseTree = ASTNode("Expr") #Start with an expr node
+
     indexofFirstToken = 0
     parseTree = _parseExpr(tokens, str(indexofFirstToken), parseTree)
 
@@ -47,7 +49,10 @@ def parser(tokens):
         return parseTree
     else:
         return False
-    
+
+
+#----- Inward facing modules
+
 #Function will find every leaf node, if the number of leaf nodes is equal to the number of tokens it is valid syntax.
 def _parseValidation(tokens, parsetree):
     tokensLength = len(tokens)
@@ -142,8 +147,9 @@ def _parsemulOP(tokens, indexOfCurrentToken, recentNode, mulOP, indexOfMulop, ke
 
     factorNode = ASTNode("Factor")
     
-    factorNode = (_parseFactor(afterMulOPTokens, str(int(keyIndexAfterMulOP) + distanceToTokenAfterOp), factorNode))#We use a keyIndex here because we can't just use i + 1, we need to use the keyIndex of the token after the mulOP.
-                                                                                     #Mainly just for when we have cut open dictionaries a lot
+    factorNode = (_parseFactor(afterMulOPTokens, str(int(keyIndexAfterMulOP) 
+                  + distanceToTokenAfterOp), factorNode))#We use a keyIndex here because we can't just use i + 1, we need to use the keyIndex of the token after the mulOP.
+                                                        #Mainly just for when we have cut open dictionaries a lot
     recentNode.add_child(factorNode)
 
     return recentNode

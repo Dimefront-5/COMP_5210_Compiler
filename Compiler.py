@@ -1,16 +1,16 @@
 '''
 -@author: Tyler Ray
--@date: 9/9/2023
+-@date: 9/12/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
 - ***WORK IN PROGRESS***
-- Finished: Tokenizer, Parser
+- Finished: Tokenizer, expr Parser
 '''
 
 import Tokenizer as tk
 import Parser as ps
-import compilerConstants as cc
+import CompilerConstants as cc
 
 import argparse
 import sys
@@ -46,13 +46,14 @@ def main():
         if parsetree == False:
            print("Errors found in ", possibleInputFile, ":")
            print("\tSyntax Error\n\n")
+           sys.exit()
         else:
             print(parsetree)
 
 
 #------ Inward Facing modules
 
-#Built in help command. 
+#Has a built in help command. 
 def _commandLineParser():
 
     parser = argparse.ArgumentParser(description='a custom python compiler for c files')
@@ -77,8 +78,6 @@ def _fileValidityCheck(possible_input_file):
     if possible_input_file[-2:] != ".c": 
         print("Please input a valid c file to compile")
         sys.exit()
-
-    return
 
 def _tokenOutputFormatter(tokens):
 
