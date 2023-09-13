@@ -43,7 +43,7 @@ def main():
         print(output_for_tokens)
 
     if args.p:
-        if parsetree == False:
+        if parsetree == None:
            print("Errors found in ", possibleInputFile, ":")
            print("\tSyntax Error\n\n")
            sys.exit()
@@ -85,7 +85,8 @@ def _tokenOutputFormatter(tokens):
     errorOutput = ""
     for i in tokens:
         if "ERROR" in tokens[i][cc.TOKEN_TYPE_INDEX]:
-            errorOutput += tokens[i][cc.TOKEN_TYPE_INDEX] + ":\n\tline number,column number - " + str(tokens[i][cc.LINE_NUMBER_INDEX]) + "," + str(tokens[i][cc.COLUMN_NUMBER_INDEX]) + "\t\'" + tokens[i][cc.TOKEN_INDEX] + "\'" +  "\n"
+            errorOutput += tokens[i][cc.TOKEN_TYPE_INDEX] + ":\n\tline number,column number - " + str(tokens[i][cc.LINE_NUMBER_INDEX]) + ","\
+                        + str(tokens[i][cc.COLUMN_NUMBER_INDEX]) + "\t\'" + tokens[i][cc.TOKEN_INDEX] + "\'" +  "\n"
             continue
 
         output += "Token Type: " + tokens[i][cc.TOKEN_TYPE_INDEX]

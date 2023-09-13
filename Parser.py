@@ -43,12 +43,15 @@ def parser(tokens):
     indexofFirstToken = 0
     parseTree = _parseExpr(tokens, str(indexofFirstToken), parseTree)
 
+    if parseTree == None:
+        return None
+
     isASTValid = _parseValidation(tokens, parseTree)
 
     if isASTValid == True:
         return parseTree
     else:
-        return False
+        return None
 
 
 #----- Inward facing modules
@@ -78,13 +81,13 @@ def _findLeafNodes(node, count):
     return count
 
 #Expr parser ----------------
-#Will parse through addOP expressions, then will add the addOP and parse a term
+#Parses expr with addOPs, will first parse through the expr before the addOP, we will add that node and a new node for our addOP to our parsetree, then parse through the term after the addOP
 def _parseaddOP(tokens, indexOfCurrentToken, recentNode, addOP, indexOfAddop, keyIndexAfterAddOP):
     distanceToTokenAfterOp = 1
     exprNode = ASTNode("Expr")
 
     listOfTokens = list(tokens.items())
-    beforeAddOP = listOfTokens[:indexOfAddop]
+    beforeAddOP = listOfTokens[:indexOfAddop] #We want to cut out the addOP token from the tokens we pass to the expr parser
     afterAddOP = listOfTokens[indexOfAddop+distanceToTokenAfterOp:] #We want to cut out the addOP token from the tokens we pass to the expr parser
 
     beforeAddOPTokens = dict(beforeAddOP)
@@ -92,8 +95,8 @@ def _parseaddOP(tokens, indexOfCurrentToken, recentNode, addOP, indexOfAddop, ke
 
     exprNode = _parseExpr(beforeAddOPTokens, str(indexOfCurrentToken), exprNode)
 
-    if exprNode == False:
-        return False
+    if exprNode == None: #if it isn't a valid expr
+        return None
     
     recentNode.add_child(exprNode)
     recentNode.add_child(ASTNode(addOP))
@@ -101,6 +104,10 @@ def _parseaddOP(tokens, indexOfCurrentToken, recentNode, addOP, indexOfAddop, ke
 
     termNode = ASTNode("Term")
     termNode = _parseTerm(afterAddOPTokens, str(int(keyIndexAfterAddOP)+distanceToTokenAfterOp), termNode) #Same as the term parser, we use a keyIndex here because we can't just use i + 1, we need to use the keyIndex of the token after the addOP.
+    
+    if termNode == None: #if it isn't a valid term
+        return None
+    
     recentNode.add_child(termNode)
 
     return recentNode
@@ -111,12 +118,14 @@ def _parseExpr(tokens, indexOfCurrentToken, recentNode):
 
     if addOP != '':
         recentNode = _parseaddOP(tokens, indexOfCurrentToken, recentNode, addOP, indexOfLastAddOP, keyIndexOfTokenAfterOp)
+        if recentNode == None:
+            return None
 
     else:
         termNode = ASTNode("Term")
         termNode = _parseTerm(tokens, str(indexOfCurrentToken), termNode)
-        if termNode == False:
-            return False
+        if termNode == None:
+            return None
         
         recentNode.add_child(termNode)
 
@@ -125,22 +134,22 @@ def _parseExpr(tokens, indexOfCurrentToken, recentNode):
 
 #Term parser ----------------
 
-#Parses a mulOP term, then will add the mulOP and parse a factor
+#Parse a term that contains a mulOP. We parse the term before the mulop and then add it along with the mulop. After that we parse the factor after the mulop
 def _parsemulOP(tokens, indexOfCurrentToken, recentNode, mulOP, indexOfMulop, keyIndexAfterMulOP):
     distanceToTokenAfterOp = 1
     termNode = ASTNode("Term")
 
-    items = list(tokens.items())
-    beforeMulOP = items[:indexOfMulop]
-    afterMulOP = items[indexOfMulop+distanceToTokenAfterOp:]
+    items = list(tokens.items()) #Turn the dict into a list so we can cut it
+    beforeMulOP = items[:indexOfMulop] #Cut the tokens before the mulOP
+    afterMulOP = items[indexOfMulop+distanceToTokenAfterOp:]#cut after the mulOP
 
     beforeMulOPTokens = dict(beforeMulOP)
     afterMulOPTokens = dict(afterMulOP)
 
     termNode = _parseTerm(beforeMulOPTokens, str(indexOfCurrentToken), termNode)
 
-    if termNode == False:
-        return False
+    if termNode == None: #if it isn't a valid term
+        return None
     
     recentNode.add_child(termNode)
     recentNode.add_child(ASTNode(mulOP))
@@ -150,6 +159,10 @@ def _parsemulOP(tokens, indexOfCurrentToken, recentNode, mulOP, indexOfMulop, ke
     factorNode = (_parseFactor(afterMulOPTokens, str(int(keyIndexAfterMulOP) 
                   + distanceToTokenAfterOp), factorNode))#We use a keyIndex here because we can't just use i + 1, we need to use the keyIndex of the token after the mulOP.
                                                         #Mainly just for when we have cut open dictionaries a lot
+
+    if factorNode == None: #if it isn't a valid factor
+        return None
+    
     recentNode.add_child(factorNode)
 
     return recentNode
@@ -161,13 +174,15 @@ def _parseTerm(tokens, indexOfCurrentToken, recentNode):
 
     if mulOP != '':
         recentNode = _parsemulOP(tokens, indexOfCurrentToken, recentNode, mulOP, index_of_last_mulOP, KeyIndex_for_after_token_split)
+        if recentNode == None:
+            return None
 
     else:
         factorNode = ASTNode("Factor")
         factorNode = _parseFactor(tokens, str(indexOfCurrentToken), factorNode)
 
-        if factorNode == False:
-            return False
+        if factorNode == None:
+            return None
 
         recentNode.add_child(factorNode)
 
@@ -177,6 +192,7 @@ def _parseTerm(tokens, indexOfCurrentToken, recentNode):
 
 #Factor parser ---------------
 
+#Finding the index of the closing paren, and if there is one
 def _closingParenLocator(tokens):
     index_of_closing_paren = 0
     isclosingparen = False
@@ -191,15 +207,16 @@ def _closingParenLocator(tokens):
     return isclosingparen, index_of_closing_paren
 
 #Will parse through a (expr), makes sure there is a closing paren before looking through, Then cuts the dict to just an expr and parses it
+#Add first the opening paren, then the expr node, then the closing paren
 def _parseFactorParen(tokens, indexOfCurrentToken, recentNode):
     distanceToStartOfExpr = 1
 
     recentNode.add_child(ASTNode("("))
 
-    isclosingparen, index_of_closing_paren = _closingParenLocator(tokens)
+    isclosingparen, index_of_closing_paren = _closingParenLocator(tokens) #Finds the closing paren
 
     if isclosingparen == False:
-        return False
+        return None
     
     items = list(tokens.items())
     between_parens = items[distanceToStartOfExpr:index_of_closing_paren] #Want to cut the parens our of the tokens we pass to expr parser
@@ -207,10 +224,10 @@ def _parseFactorParen(tokens, indexOfCurrentToken, recentNode):
 
     exprNode = ASTNode("Expr")
 
-    exprNode = _parseExpr(between_parens_tokens, str(int(indexOfCurrentToken) + distanceToStartOfExpr), exprNode)
+    exprNode = _parseExpr(between_parens_tokens, str(int(indexOfCurrentToken) + distanceToStartOfExpr), exprNode)#Want to parse through the expr between the parens, we pass the tokens, the index of the first token and our node
 
-    if exprNode == False:
-        return False
+    if exprNode == None:
+        return None
     
     recentNode.add_child(exprNode)
     recentNode.add_child(ASTNode(")"))
@@ -221,7 +238,7 @@ def _parseFactorParen(tokens, indexOfCurrentToken, recentNode):
 def _parseFactor(tokens, indexOfCurrentToken, recentNode): 
 
     if len(tokens) == 0: #If we call this and there are no tokens, it means the grammar has a incorrect operator setup Ex: '1 + 2 +' or '* 1 + 2'
-        return False
+        return None
     
     if tokens[indexOfCurrentToken][cc.TOKEN_TYPE_INDEX] == "number":
         numberNode = ASTNode(tokens[indexOfCurrentToken][1])
@@ -237,21 +254,21 @@ def _parseFactor(tokens, indexOfCurrentToken, recentNode):
         return _parseFactorParen(tokens, indexOfCurrentToken, recentNode)
     
     else:
-        return False
+        return None
         
 #Function will find the last index of mulOP or addOP and return it
 def index_finder(tokens, operatorType):
     operator = ''
-    mulOPIndex = 0
-    lastmulOPIndex = 0
+    OPIndex = 0
+    lastOPIndex = 0
     keyIndexAfterOp = str(0)
 
     number_of_open_paren = 0
     for keyIndex in tokens:
         if tokens[keyIndex][cc.TOKEN_TYPE_INDEX] == operatorType: #Either a mulOP or addOP
-            if number_of_open_paren == 0:
+            if number_of_open_paren == 0: #if there are no open parens and the token is a mulOP or addOP. we for now can say that is the last operator
                 operator = tokens[keyIndex][1]
-                lastmulOPIndex = mulOPIndex
+                lastOPIndex = OPIndex
                 keyIndexAfterOp = keyIndex
 
         elif tokens[keyIndex][cc.TOKEN_INDEX] == "(":
@@ -260,7 +277,7 @@ def index_finder(tokens, operatorType):
         elif tokens[keyIndex][cc.TOKEN_INDEX] == ")":
             number_of_open_paren -= 1
 
-        mulOPIndex += 1
+        OPIndex += 1
 
-    return operator, lastmulOPIndex, keyIndexAfterOp
+    return operator, lastOPIndex, keyIndexAfterOp
 
