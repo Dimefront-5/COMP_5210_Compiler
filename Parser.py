@@ -7,6 +7,7 @@
 - ***WORK IN PROGRESS***
 '''
 import CompilerConstants as cc
+from anytree import RenderTree
 
 #grammar for our parser
 grammar = {
@@ -27,13 +28,11 @@ class ASTNode:
     def add_child(self, child_node):
         self.children.append(child_node)
 
-    def __str__(self, level=0):
-        result = "\t" * level + self.value + "\n"
-
-        for child in self.children:
-            result += child.__str__(level + 1)
-
-        return result
+    def __str__(self):
+        output = ""
+        for pre, fill, node in RenderTree(self):
+            output += "%s%s" % (pre, node.value) + "\n"
+        return output
 
 
 #main function for the parser
