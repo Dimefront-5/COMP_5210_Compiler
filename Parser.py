@@ -8,15 +8,55 @@
 '''
 import CompilerConstants as cc
 from anytree import RenderTree
-
+'''
+Need to change grammar to:
+Expr -> Term + Expr, Term - Expr, Term
+Term -> Factor * Term, Factor / Term, Factor
+Factor -> num, (Expr), id
+'''
 #grammar for our parser
 grammar = {
+    'Program': ['declList'],
+    'declList': ['decl', 'decl declList'],
+    'decl': ['type id (Args) {local_decls stmtList}'],
+    'type': ['int', 'void', 'float'],
+    'Args': ['Arg', 'Arg, Args'],
+    'Arg': ['type id', ''],
+    'stmtList': ['stmt', 'stmt stmtList'],
+    'stmt': ['return num;'],
+    'local_decls': ['local_decl', 'local_decl local_decls'],
+    'local_decl': ['type id;'],
     'Expr': ['Expr + Term', 'Expr - Term', 'Term'],
     'Term': ['Term * Factor', 'Term / Factor', 'Factor'],
     'Factor': ['num', '(Expr)', 'id'],
     'num': [r'^[\d]+$ | ^[\d]+\.[\d]+$'],
     'id': [r'^[A-Za-z_][\w_]*$'] 
 }
+
+class symbolTable:
+    symbolTable = {} #dictionary of dictionaries, first key is the scope, with a value of a dictionary of variables and their types. Second variable is return variables
+    #example: {'parser': {'x': 'int', 'y': 'float'}, 'main': {'z': 'int'}
+
+    def get_type(name, scope):
+        return symbolTable[scope][name]
+    
+    def add_variable(name, type, scope):
+        symbolTable[scope][name] = type
+
+    def add_scope(name, fun_type, params):
+        symbolTable[name] = {}
+        symbolTable[name]['return_type'] = fun_type
+        symbolTable[name]['args'] = params
+
+    def __str__(symbolTable):
+        output = ""
+        for scope in symbolTable:
+            output += "Scope: " + scope + "\n"
+            for variable in symbolTable[scope]:
+                if variable != 'return_type' and variable != 'args':
+                    output += "\t" + variable + ": " + symbolTable[scope][variable] + "\n"
+            output += "\n"
+        return output
 
 #ASTNode class ----------------
 #I had chatGPT generate this for me
@@ -34,9 +74,14 @@ class ASTNode:
             output += "%s%s" % (pre, node.value) + "\n"
         return output
 
-
+global index
+index = 0
 #main function for the parser
 def parser(tokens):
+    print(tokens)
+    parseTree = _parse_program(tokens)
+    return parseTree
+    '''
     parseTree = ASTNode("Expr") #Start with an expr node
 
     indexofFirstToken = 0
@@ -51,6 +96,7 @@ def parser(tokens):
         return parseTree
     else:
         return None
+    '''
 
 
 #----- Inward facing modules
@@ -78,6 +124,71 @@ def _findLeafNodes(node, count):
             count = _findLeafNodes(child, count)
 
     return count
+
+def _parse_program(tokens):
+    programNode = ASTNode("Program")
+    global index
+
+    while index < len(tokens):
+        programNode.add_child(_parse_declList(tokens))
+        index+=1
+
+    return programNode
+
+def _parse_declList(tokens):
+    declListNode = ASTNode("declList")
+    
+    declNode = _parse_decl(tokens)
+
+    declListNode.add_child(declNode)
+
+    return declListNode
+
+
+
+def _parse_decl(tokens):
+    declNode = ASTNode("decl")
+    global index
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
+        typeNode = ASTNode("type")
+        typeNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
+        declNode.add_child(typeNode)
+        index += 1
+
+        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+            idNode = ASTNode("id")
+            idNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
+            declNode.add_child(idNode)
+            index += 1
+
+            if tokens[str(index)][cc.TOKEN_INDEX] == '(':
+                index += 1
+
+                argsNode = ASTNode("Args")
+                #recentNode.add_child(_parse_Args(tokens, index, recentNode)) For now just have no args
+                argsNode.add_child(ASTNode(""))
+                declNode.add_child(argsNode)
+                #index += 1
+
+                if tokens[str(index)][cc.TOKEN_INDEX] == ')':
+                    index += 1
+
+                    if tokens[str(index)][cc.TOKEN_INDEX] == '{':
+                        index += 1
+
+                        #recentNode.add_child(_parse_local_decls(tokens, index, recentNode))
+                        #index += 1
+
+                        #recentNode.add_child(_parse_stmtList(tokens, index, recentNode))
+                        #index += 1
+
+                        if tokens[str(index)][cc.TOKEN_INDEX] == '}':
+                            index += 1
+                            return declNode
+                        
+    return None
+    
+
 
 #Expr parser ----------------
 #Parses expr with addOPs, will first parse through the expr before the addOP, we will add that node and a new node for our addOP to our parsetree, then parse through the term after the addOP
