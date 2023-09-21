@@ -154,7 +154,7 @@ def word_creator(line, column_number, total_length_of_allowed_word):
 
 #checks when we see a type before an identifier and validates it is a valid way to call a function or decleration
 def check_for_type(identifier, i, notskippingthesymbol, line):
-    if identifier[i] == '=' or identifier[i] == ' ':
+    if identifier[i] == '=' or identifier[i] == ' ' or identifier[i] == ';' or identifier[i] == ',':
         skip_amount = i - notskippingthesymbol
         return identifier[:i], skip_amount
     
@@ -192,9 +192,7 @@ def identifier_detector(line, character, column_number, dict_of_tokens, dictiona
         for i in range(len(identifier)):
 
             if  re.match(token_specifications['symbols'], identifier[i]):
-                print(identifier[i], dict_of_tokens[str(dictionaryIndex-1)][0])
                 if dict_of_tokens[str(dictionaryIndex-1)][0] == 'type': #decleration, we need to account for function names
-                    print('here')
                     identifier, skip_amount = check_for_type(identifier, i, notskippingthesymbol, line)
                     return identifier, skip_amount 
                     

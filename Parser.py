@@ -154,7 +154,6 @@ def _parse_decl(tokens):
         typeNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
         declNode.add_child(typeNode)
         index += 1
-
         if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
             idNode = ASTNode("id")
             idNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
@@ -175,9 +174,8 @@ def _parse_decl(tokens):
 
                     if tokens[str(index)][cc.TOKEN_INDEX] == '{':
                         index += 1
-
-                        #recentNode.add_child(_parse_local_decls(tokens, index, recentNode))
-                        #index += 1
+                        print(index)
+                        declNode.add_child(_parse_local_decls(tokens))
                         declNode.add_child(_parse_stmtList(tokens))
                         index += 1
 
@@ -186,11 +184,37 @@ def _parse_decl(tokens):
                             return declNode
                         
     return None
-    
 
+def _parse_local_decls(tokens):
+    local_declsNode = _parse_local_decl(tokens)
+    return local_declsNode
+
+def _parse_local_decl(tokens):
+    print("here")
+    declNode = ASTNode("local_decl")
+    global index
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
+        print("here", index)
+        typeNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+        index += 1
+
+        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+            typeNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
+            declNode.add_child(typeNode)
+            index += 1
+
+            if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+                index += 1
+                print("hi", index)
+                return declNode
+                        
+    return None
+
+#stmtList -> stmt stmtList | stmt
 def _parse_stmtList(tokens):
     stmtNode = _parse_stmt(tokens)
     return stmtNode
+
 #stmt -> return num;
 def _parse_stmt(tokens):
     stmtNode = ASTNode("Stmts")
@@ -205,6 +229,7 @@ def _parse_stmt(tokens):
             index += 1
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                 return stmtNode
+    return None
 
 #Expr parser ----------------
 #Parses expr with addOPs, will first parse through the expr before the addOP, we will add that node and a new node for our addOP to our parsetree, then parse through the term after the addOP
