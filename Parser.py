@@ -33,31 +33,37 @@ grammar = {
     'id': [r'^[A-Za-z_][\w_]*$'] 
 }
 
-class symbolTable:
-    symbolTable = {} #dictionary of dictionaries, first key is the scope, with a value of a dictionary of variables and their types. Second variable is return variables
+#I had chatGPT generate this for me, I wrote most of it before hand and had it refine it
+class SymbolTable:
+    def __init__(self):
+        self.symbolTable = {}   #dictionary of dictionaries, first key is the scope, with a value of a dictionary of variables and their types. Second variable is return variables
     #example: {'parser': {'x': 'int', 'y': 'float'}, 'main': {'z': 'int'}
 
-    def get_type(name, scope):
-        return symbolTable[scope][name]
-    
-    def add_variable(name, type, scope):
-        symbolTable[scope][name] = type
+    def get_type(self, name, scope):
+        if scope in self.symbolTable and name in self.symbolTable[scope]:
+            return self.symbolTable[scope][name]
+        else:
+            return None  # Handle the case when the variable is not found
 
-    def add_scope(name, fun_type, params):
-        symbolTable[name] = {}
-        symbolTable[name]['return_type'] = fun_type
-        symbolTable[name]['args'] = params
+    def add_variable(self, name, type, scope):
+        self.symbolTable[scope][name] = type
 
-    def __str__(symbolTable):
+    def add_scope(self, name, fun_type, params):
+        if name not in self.symbolTable:
+            self.symbolTable[name] = {}  # Create a new scope
+        self.symbolTable[name]['return_type'] = fun_type
+        self.symbolTable[name]['args'] = params
+
+    def __str__(self):
         output = ""
-        for scope in symbolTable:
+        for scope in self.symbolTable:
             output += "Scope: " + scope + "\n"
-            for variable in symbolTable[scope]:
+            for variable in self.symbolTable[scope]:
                 if variable != 'return_type' and variable != 'args':
-                    output += "\t" + variable + ": " + symbolTable[scope][variable] + "\n"
+                    output += "\t" + variable + ": " + self.symbolTable[scope][variable] + "\n"
             output += "\n"
         return output
-
+    
 #ASTNode class ----------------
 #I had chatGPT generate this for me
 class ASTNode:
@@ -76,11 +82,14 @@ class ASTNode:
 
 global index
 index = 0
+global symbolTable
+symbolTable = SymbolTable()
+global scope
+scope = "global"
 #main function for the parser
 def parser(tokens):
-    print(tokens)
     parseTree = _parse_program(tokens)
-    return parseTree
+    return parseTree, symbolTable
     '''
     parseTree = ASTNode("Expr") #Start with an expr node
 
@@ -136,11 +145,13 @@ def _parse_program(tokens):
     return programNode
 
 def _parse_declList(tokens):
+    global scope
     declListNode = ASTNode("declList")
     
     declNode = _parse_decl(tokens)
 
     declListNode.add_child(declNode)
+    scope = "global"
 
     return declListNode
 
@@ -149,6 +160,8 @@ def _parse_declList(tokens):
 def _parse_decl(tokens):
     declNode = ASTNode("decl")
     global index
+    global scope
+
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
         typeNode = ASTNode("type")
         typeNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
@@ -167,14 +180,14 @@ def _parse_decl(tokens):
                 #recentNode.add_child(_parse_Args(tokens, index, recentNode)) For now just have no args
                 argsNode.add_child(ASTNode(""))
                 declNode.add_child(argsNode)
-                #index += 1
-
+                print(tokens, index-2, index - 3)
+                symbolTable.add_scope(tokens[str(index-2)][cc.TOKEN_INDEX], tokens[str(index-3)][cc.TOKEN_INDEX], None)
+                scope = tokens[str(index-2)][cc.TOKEN_INDEX]
                 if tokens[str(index)][cc.TOKEN_INDEX] == ')':
                     index += 1
 
                     if tokens[str(index)][cc.TOKEN_INDEX] == '{':
                         index += 1
-                        print(index)
                         declNode.add_child(_parse_local_decls(tokens))
                         declNode.add_child(_parse_stmtList(tokens))
                         index += 1
@@ -190,11 +203,11 @@ def _parse_local_decls(tokens):
     return local_declsNode
 
 def _parse_local_decl(tokens):
-    print("here")
     declNode = ASTNode("local_decl")
     global index
+    global scope
+
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
-        print("here", index)
         typeNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
         index += 1
 
@@ -202,10 +215,10 @@ def _parse_local_decl(tokens):
             typeNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
             declNode.add_child(typeNode)
             index += 1
-
+            
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                 index += 1
-                print("hi", index)
+                symbolTable.add_variable(tokens[str(index-2)][cc.TOKEN_INDEX], tokens[str(index-3)][cc.TOKEN_INDEX], scope)
                 return declNode
                         
     return None

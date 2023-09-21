@@ -30,7 +30,7 @@ def main():
 
     tokens = tk.main(inputFile)
 
-    parsetree = ps.parser(tokens)
+    parsetree, symbolTable = ps.parser(tokens)
 
     output_for_tokens, error_output = _tokenOutputFormatter(tokens)
 
@@ -50,6 +50,15 @@ def main():
         else:
             print(parsetree)
 
+    if args.s:
+        if symbolTable == None:
+            print("Errors found in ", possibleInputFile, ":")
+            print("\tSyntax Error\n\n")
+            sys.exit()
+        else:
+            print(symbolTable)
+
+
 
 #------ Inward Facing modules
 
@@ -62,7 +71,9 @@ def _commandLineParser():
 
     parser.add_argument('-t', action="store_true", help='outputs a tokenized version of the input file')
 
-    parser.add_argument('-p', action="store_true", help='outputs a parse tree of the input file' )
+    parser.add_argument('-p', action="store_true", help='outputs a parse tree of the input file')
+
+    parser.add_argument('-s', action="store_true", help='outputs a symbol table of the input file')
 
     args = parser.parse_args()
 
