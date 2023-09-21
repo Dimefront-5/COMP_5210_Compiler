@@ -57,10 +57,11 @@ class SymbolTable:
     def __str__(self):
         output = ""
         for scope in self.symbolTable:
-            output += "Scope: " + scope + "\n"
+            output += "Scope: " + scope + "\n\t" + "Return Type: " + self.symbolTable[scope]['return_type'] + "\n\tArguments: " + str(self.symbolTable[scope]['args']) + "\n"
+            output += "\tVariables:\n"
             for variable in self.symbolTable[scope]:
                 if variable != 'return_type' and variable != 'args':
-                    output += "\t" + variable + ": " + self.symbolTable[scope][variable] + "\n"
+                    output += "\t\t" + variable + ": " + self.symbolTable[scope][variable] + "\n"
             output += "\n"
         return output
     
@@ -167,22 +168,23 @@ def _parse_decl(tokens):
         typeNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
         declNode.add_child(typeNode)
         index += 1
+        scope_type = tokens[str(index-1)][cc.TOKEN_INDEX]
+
         if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
             idNode = ASTNode("id")
             idNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
             declNode.add_child(idNode)
             index += 1
+            scope = tokens[str(index-1)][cc.TOKEN_INDEX]
+            print(scope)
 
             if tokens[str(index)][cc.TOKEN_INDEX] == '(':
                 index += 1
-
-                argsNode = ASTNode("Args")
-                #recentNode.add_child(_parse_Args(tokens, index, recentNode)) For now just have no args
-                argsNode.add_child(ASTNode(""))
+                argsNode, args = (_parse_Args(tokens))
                 declNode.add_child(argsNode)
-                print(tokens, index-2, index - 3)
-                symbolTable.add_scope(tokens[str(index-2)][cc.TOKEN_INDEX], tokens[str(index-3)][cc.TOKEN_INDEX], None)
-                scope = tokens[str(index-2)][cc.TOKEN_INDEX]
+
+                symbolTable.add_scope(scope, scope_type, args)
+
                 if tokens[str(index)][cc.TOKEN_INDEX] == ')':
                     index += 1
 
@@ -198,6 +200,30 @@ def _parse_decl(tokens):
                         
     return None
 
+
+def _parse_Args(tokens):
+    argsNode = ASTNode("Args")
+    argNode, args = _parse_Arg(tokens)
+    argsNode.add_child(argNode)  
+    return argsNode, args
+
+def _parse_Arg(tokens):
+    global index
+    global scope
+    args = {}
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
+        typeNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+        index += 1
+
+        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+            typeNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
+            index += 1
+            args[tokens[str(index-1)][cc.TOKEN_INDEX]] = tokens[str(index-2)][cc.TOKEN_INDEX]
+            return typeNode, args
+    elif tokens[str(index)][cc.TOKEN_INDEX] == ')':
+        return ASTNode("")
+    
+    return None
 def _parse_local_decls(tokens):
     local_declsNode = _parse_local_decl(tokens)
     return local_declsNode
@@ -210,7 +236,6 @@ def _parse_local_decl(tokens):
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
         typeNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
         index += 1
-
         if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
             typeNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
             declNode.add_child(typeNode)
@@ -218,6 +243,8 @@ def _parse_local_decl(tokens):
             
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                 index += 1
+                print(tokens, index)
+                print(tokens[str(index-2)][cc.TOKEN_INDEX], tokens[str(index-3)][cc.TOKEN_INDEX], scope)
                 symbolTable.add_variable(tokens[str(index-2)][cc.TOKEN_INDEX], tokens[str(index-3)][cc.TOKEN_INDEX], scope)
                 return declNode
                         
