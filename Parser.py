@@ -145,7 +145,7 @@ def _parse_declList(tokens):
     return declListNode
 
 
-
+#TODO: Not an ideal way to lay this out. I will need to Refactor
 def _parse_decl(tokens):
     declNode = ASTNode("decl")
     global index
@@ -178,9 +178,8 @@ def _parse_decl(tokens):
 
                         #recentNode.add_child(_parse_local_decls(tokens, index, recentNode))
                         #index += 1
-
-                        #recentNode.add_child(_parse_stmtList(tokens, index, recentNode))
-                        #index += 1
+                        declNode.add_child(_parse_stmtList(tokens))
+                        index += 1
 
                         if tokens[str(index)][cc.TOKEN_INDEX] == '}':
                             index += 1
@@ -189,6 +188,23 @@ def _parse_decl(tokens):
     return None
     
 
+def _parse_stmtList(tokens):
+    stmtNode = _parse_stmt(tokens)
+    return stmtNode
+#stmt -> return num;
+def _parse_stmt(tokens):
+    stmtNode = ASTNode("Stmts")
+    global index
+    if tokens[str(index)][cc.TOKEN_INDEX] == 'return':
+        returnNode = ASTNode("return")
+        index += 1
+        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+            numNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+            returnNode.add_child(numNode)
+            stmtNode.add_child(returnNode)
+            index += 1
+            if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+                return stmtNode
 
 #Expr parser ----------------
 #Parses expr with addOPs, will first parse through the expr before the addOP, we will add that node and a new node for our addOP to our parsetree, then parse through the term after the addOP
