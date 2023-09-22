@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 9/11/2023
+-@date: 9/21/2023
 
 - Will parse through our token list and output a parse tree
 - Only works for expr as of right now
@@ -8,17 +8,19 @@
 '''
 import CompilerConstants as cc
 from anytree import RenderTree
+
 '''
 Need to change grammar to:
 Expr -> Term + Expr, Term - Expr, Term
 Term -> Factor * Term, Factor / Term, Factor
 Factor -> num, (Expr), id
 '''
+#TODO: Rewrite grammar as I add more things
 #grammar for our parser
 grammar = {
     'Program': ['declList'],
     'declList': ['decl', 'decl declList'],
-    'decl': ['type id (Args) {local_decls stmtList}'],
+    'decl': ['type id (Args) \{local_decls stmtList\}'],
     'type': ['int', 'void', 'float'],
     'Args': ['Arg', 'Arg, Args'],
     'Arg': ['type id', ''],
@@ -26,6 +28,7 @@ grammar = {
     'stmt': ['return num;'],
     'local_decls': ['local_decl', 'local_decl local_decls'],
     'local_decl': ['type id;'],
+    #------Previous grammar is below. New Grammar is above
     'Expr': ['Expr + Term', 'Expr - Term', 'Term'],
     'Term': ['Term * Factor', 'Term / Factor', 'Factor'],
     'Factor': ['num', '(Expr)', 'id'],
@@ -70,7 +73,7 @@ class SymbolTable:
 class ASTNode:
     def __init__(self, value=None):
         self.value = value          
-        self.children = []          # List of child nodes
+        self.children = [] # List of child nodes
 
     def add_child(self, child_node):
         self.children.append(child_node)
@@ -87,11 +90,13 @@ global symbolTable
 symbolTable = SymbolTable()
 global scope
 scope = "global"
+
 #main function for the parser
 def parser(tokens):
     parseTree = _parse_program(tokens)
     return parseTree, symbolTable
     '''
+    Keeping this for now, probably will not need it later
     parseTree = ASTNode("Expr") #Start with an expr node
 
     indexofFirstToken = 0
@@ -111,7 +116,7 @@ def parser(tokens):
 
 #----- Inward facing modules
 
-#Function will find every leaf node, if the number of leaf nodes is equal to the number of tokens it is valid syntax.
+#Function will find every leaf node, if the number of leaf nodes is equal to the number of tokens it is valid syntax. Not needed anymore
 def _parseValidation(tokens, parsetree):
     tokensLength = len(tokens)
     count = 0
@@ -122,7 +127,7 @@ def _parseValidation(tokens, parsetree):
     
     return True
 
-#Finds every leaf node
+#Finds every leaf node, we won't need this anymore since every token won't be a leaf node now. Will keep for now
 def _findLeafNodes(node, count):
     
     if len(node.children) == 0:
@@ -135,6 +140,7 @@ def _findLeafNodes(node, count):
 
     return count
 
+#program -> declList
 def _parse_program(tokens):
     programNode = ASTNode("Program")
     global index
@@ -145,6 +151,8 @@ def _parse_program(tokens):
 
     return programNode
 
+#TODO: Need to allow for multiple decls
+#declList -> decl declList | decl
 def _parse_declList(tokens):
     global scope
     declListNode = ASTNode("declList")
@@ -158,6 +166,7 @@ def _parse_declList(tokens):
 
 
 #TODO: Not an ideal way to lay this out. I will need to Refactor
+#decl -> type id (Args) {local_decls stmtList}
 def _parse_decl(tokens):
     declNode = ASTNode("decl")
     global index
@@ -180,7 +189,8 @@ def _parse_decl(tokens):
 
             if tokens[str(index)][cc.TOKEN_INDEX] == '(':
                 index += 1
-                argsNode, args = (_parse_Args(tokens))
+                argsNode = ASTNode("Args")
+                argsNode, args = (_parse_Args(tokens, argsNode))
                 declNode.add_child(argsNode)
 
                 symbolTable.add_scope(scope, scope_type, args)
@@ -200,17 +210,27 @@ def _parse_decl(tokens):
                         
     return None
 
+#TODO: Need to allow for multiple args
+#Args -> Arg, Args | Arg
+def _parse_Args(tokens, argsNode):
+    global index
+    argNode1, initialArgs = _parse_Arg(tokens)
+    if tokens[str(index)][cc.TOKEN_INDEX] == ',':
+        index += 1
+        argNode2, args = _parse_Args(tokens, argsNode)
+        initialArgs.update(args)
+        argNode2.add_child(argNode1)
+        return argNode2, initialArgs
+    else:
+        argsNode.add_child(argNode1)
+        return argsNode, initialArgs
 
-def _parse_Args(tokens):
-    argsNode = ASTNode("Args")
-    argNode, args = _parse_Arg(tokens)
-    argsNode.add_child(argNode)  
-    return argsNode, args
-
+#Arg -> type id
 def _parse_Arg(tokens):
     global index
     global scope
     args = {}
+    
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
         typeNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
         index += 1
@@ -220,14 +240,19 @@ def _parse_Arg(tokens):
             index += 1
             args[tokens[str(index-1)][cc.TOKEN_INDEX]] = tokens[str(index-2)][cc.TOKEN_INDEX]
             return typeNode, args
+    
     elif tokens[str(index)][cc.TOKEN_INDEX] == ')':
         return ASTNode("")
     
     return None
+
+#TODO: Need to allow for multiple local decls
+#local_decls -> local_decl local_decls | local_decl
 def _parse_local_decls(tokens):
     local_declsNode = _parse_local_decl(tokens)
     return local_declsNode
 
+#local_decl -> type id;
 def _parse_local_decl(tokens):
     declNode = ASTNode("local_decl")
     global index
@@ -236,6 +261,7 @@ def _parse_local_decl(tokens):
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
         typeNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
         index += 1
+
         if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
             typeNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
             declNode.add_child(typeNode)
@@ -243,18 +269,19 @@ def _parse_local_decl(tokens):
             
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                 index += 1
-                print(tokens, index)
-                print(tokens[str(index-2)][cc.TOKEN_INDEX], tokens[str(index-3)][cc.TOKEN_INDEX], scope)
-                symbolTable.add_variable(tokens[str(index-2)][cc.TOKEN_INDEX], tokens[str(index-3)][cc.TOKEN_INDEX], scope)
+                symbolTable.add_variable(tokens[str(index-2)][cc.TOKEN_INDEX], tokens[str(index-3)][cc.TOKEN_INDEX], scope) # we wait to add this till we know it is valid. 
+                #Passing in the name of the variable, the type of the variable, and the scope of the variable - Name(id), Type, Scope(Will be function name)
                 return declNode
-                        
+    
     return None
 
+#TODO: As of right now we only need to allow for one stmt, we will need to change this to allow for multiple stmts
 #stmtList -> stmt stmtList | stmt
 def _parse_stmtList(tokens):
     stmtNode = _parse_stmt(tokens)
     return stmtNode
 
+#TODO: As of right now we aren't checking to see if the return type lines up with the function type
 #stmt -> return num;
 def _parse_stmt(tokens):
     stmtNode = ASTNode("Stmts")
@@ -262,16 +289,41 @@ def _parse_stmt(tokens):
     if tokens[str(index)][cc.TOKEN_INDEX] == 'return':
         returnNode = ASTNode("return")
         index += 1
-        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+
+        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier': #Return can be a id or number.
             numNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
             returnNode.add_child(numNode)
             stmtNode.add_child(returnNode)
             index += 1
+
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-                return stmtNode
+                return stmtNode #We don't need ';' in our AST
     return None
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #Expr parser ----------------
+
 #Parses expr with addOPs, will first parse through the expr before the addOP, we will add that node and a new node for our addOP to our parsetree, then parse through the term after the addOP
 def _parseaddOP(tokens, indexOfCurrentToken, recentNode, addOP, indexOfAddop, keyIndexAfterAddOP):
     distanceToTokenAfterOp = 1
