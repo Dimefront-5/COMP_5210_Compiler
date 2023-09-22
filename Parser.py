@@ -185,7 +185,6 @@ def _parse_decl(tokens):
             declNode.add_child(idNode)
             index += 1
             scope = tokens[str(index-1)][cc.TOKEN_INDEX]
-            print(scope)
 
             if tokens[str(index)][cc.TOKEN_INDEX] == '(':
                 index += 1
@@ -200,6 +199,7 @@ def _parse_decl(tokens):
 
                     if tokens[str(index)][cc.TOKEN_INDEX] == '{':
                         index += 1
+                        print("before_entering_local_decls")
                         declNode.add_child(_parse_local_decls(tokens))
                         declNode.add_child(_parse_stmtList(tokens))
                         index += 1
@@ -210,7 +210,6 @@ def _parse_decl(tokens):
                         
     return None
 
-#TODO: Need to allow for multiple args
 #Args -> Arg, Args | Arg
 def _parse_Args(tokens, argsNode):
     global index
@@ -246,15 +245,21 @@ def _parse_Arg(tokens):
     
     return None
 
-#TODO: Need to allow for multiple local decls
 #local_decls -> local_decl local_decls | local_decl
-def _parse_local_decls(tokens):
-    local_declsNode = _parse_local_decl(tokens)
+def _parse_local_decls(tokens, local_declsNode = ASTNode("local_decls")):
+    local_declsNodechild = _parse_local_decl(tokens)
+    if local_declsNode == None:
+        return None
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
+        local_declsNode2 = _parse_local_decls(tokens, local_declsNode)
+        local_declsNode2.add_child(local_declsNodechild)
+    else:
+        local_declsNode.add_child(local_declsNodechild)
+
     return local_declsNode
 
 #local_decl -> type id;
 def _parse_local_decl(tokens):
-    declNode = ASTNode("local_decl")
     global index
     global scope
 
@@ -264,14 +269,13 @@ def _parse_local_decl(tokens):
 
         if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
             typeNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
-            declNode.add_child(typeNode)
             index += 1
             
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                 index += 1
                 symbolTable.add_variable(tokens[str(index-2)][cc.TOKEN_INDEX], tokens[str(index-3)][cc.TOKEN_INDEX], scope) # we wait to add this till we know it is valid. 
                 #Passing in the name of the variable, the type of the variable, and the scope of the variable - Name(id), Type, Scope(Will be function name)
-                return declNode
+                return typeNode
     
     return None
 
