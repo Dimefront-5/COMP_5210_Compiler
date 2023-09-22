@@ -4,3 +4,7 @@ int main (int a, char b, float d) {
     float j;
     return i;
 }
+
+int choice () {
+    return 2;
+}
