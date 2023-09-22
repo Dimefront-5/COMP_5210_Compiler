@@ -27,11 +27,14 @@ grammar = {
     'stmtList': ['stmt', 'stmt stmtList'],
     'stmt': ['return num;', ''],
     'local_decls': ['local_decl', 'local_decl local_decls'],
-    'local_decl': ['type id;', ''],
+    'local_decl': ['type id;', 'type id = endofDecl;',''],
+    'endofDecl': ['num', 'id', 'string', 'character'],#Need to put expressions in this
     #------Previous grammar is below. New Grammar is above
     'Expr': ['Expr + Term', 'Expr - Term', 'Term'],
     'Term': ['Term * Factor', 'Term / Factor', 'Factor'],
     'Factor': ['num', '(Expr)', 'id'],
+    'string': [r'^"[^"]*"$'],
+    'character': ['\'[a-zA-Z]\''],
     'num': [r'^[\d]+$ | ^[\d]+\.[\d]+$'],
     'id': [r'^[A-Za-z_][\w_]*$'] 
 }
@@ -49,13 +52,17 @@ class SymbolTable:
             return None  # Handle the case when the variable is not found
 
     def add_variable(self, name, type, scope):
-        self.symbolTable[scope][name] = type
+        self.symbolTable[scope][name] = [type]
 
     def add_scope(self, name, fun_type, params):
         if name not in self.symbolTable:
             self.symbolTable[name] = {}  # Create a new scope
         self.symbolTable[name]['return_type'] = fun_type
         self.symbolTable[name]['args'] = params
+
+    def add_value(self, name, value, scope):
+        self.symbolTable[scope][name].append(value)
+
 
     def __str__(self):
         output = ""
@@ -64,7 +71,12 @@ class SymbolTable:
             output += "\tVariables:\n"
             for variable in self.symbolTable[scope]:
                 if variable != 'return_type' and variable != 'args':
-                    output += "\t\t" + variable + ": " + self.symbolTable[scope][variable] + "\n"
+                    output += "\t\t" + variable + ": " + self.symbolTable[scope][variable][0]
+                    if len(self.symbolTable[scope][variable]) > 1:
+                        output += " = " + str(self.symbolTable[scope][variable][1])
+                        output += "\n"
+                    else:
+                        output += "\n"
             output += "\n"
         return output
     
@@ -97,6 +109,7 @@ scope = "global"
 
 #main function for the parser
 def parser(tokens):
+    print(tokens)
     parseTree = _parse_program(tokens)
     return parseTree, symbolTable
     '''
@@ -296,7 +309,7 @@ def _parse_local_decls(tokens, local_declsNode = ASTNode("local_decls")):
 
     return local_declsNode
 
-#local_decl -> type id; | empty
+#local_decl -> type id; | type id = endofDecl; | empty
 def _parse_local_decl(tokens):
     global index
     global scope
@@ -306,15 +319,51 @@ def _parse_local_decl(tokens):
         index += 1
 
         if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
-            typeNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
+            identifierNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
             index += 1
             
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+                typeNode.add_child(identifierNode)
                 symbolTable.add_variable(tokens[str(index-1)][cc.TOKEN_INDEX], tokens[str(index-2)][cc.TOKEN_INDEX], scope) # we wait to add this till we know it is valid. 
                 #Passing in the name of the variable, the type of the variable, and the scope of the variable - Name(id), Type, Scope(Will be function name)
                 index += 1
                 return typeNode
+            else:
+                endofDeclNode = _parse_endofDecl(tokens)
+                if endofDeclNode != None:
+                    identifierNode.add_child(endofDeclNode)
+                    typeNode.add_child(identifierNode)
+                    return typeNode
+                
     
+    return None
+
+def _parse_endofDecl(tokens):
+    global index
+    global scope
+
+    if tokens[str(index)][cc.TOKEN_INDEX] == '=':
+        index += 1
+        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+            endOfDeclNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+            index += 1
+            if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+                symbolTable.add_variable(tokens[str(index-3)][cc.TOKEN_INDEX], tokens[str(index-4)][cc.TOKEN_INDEX], scope)
+                symbolTable.add_value(tokens[str(index-3)][cc.TOKEN_INDEX], tokens[str(index-1)][cc.TOKEN_INDEX], scope)
+                index += 1
+                return endOfDeclNode
+        elif tokens[str(index)][cc.TOKEN_INDEX] == '"' or tokens[str(index)][cc.TOKEN_INDEX] == "'":
+            index += 1
+            if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'string' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'characters':
+                endOfDeclNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+                index += 2 #We want to skip the closing quote
+                if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+                    symbolTable.add_variable(tokens[str(index-5)][cc.TOKEN_INDEX], tokens[str(index-6)][cc.TOKEN_INDEX], scope)
+                    symbolTable.add_value(tokens[str(index-5)][cc.TOKEN_INDEX], tokens[str(index-2)][cc.TOKEN_INDEX], scope)
+                    index += 1
+                    return endOfDeclNode
+            
+    Customerror("Error: Invalid local_decl")
     return None
 
 #TODO: As of right now we only need to allow for one stmt, we will need to change this to allow for multiple stmts

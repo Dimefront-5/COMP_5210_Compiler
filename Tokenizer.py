@@ -282,8 +282,7 @@ def string_tokenizer(line, column_number, line_number, dict_of_tokens, dictionar
 
         return dict_of_tokens, dictionaryIndex, skip, ismultilineString
     
-    dictionaryIndex += 1
-    dict_of_tokens[str(dictionaryIndex)] = ['string', word, line_number, column_number]
+    dict_of_tokens[str(dictionaryIndex)] = ['string', word, line_number, column_number + 1]
 
     dictionaryIndex += 1
     dict_of_tokens[str(dictionaryIndex)] = ['symbols', '\"', line_number, column_number + skip + 1] # Go ahead and add the second quotation mark. 
