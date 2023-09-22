@@ -21,11 +21,15 @@ grammar = {
     'Program': ['declList'],
     'declList': ['decl', 'decl declList'],
     'decl': ['type id (Args) \{local_decls stmtList\}'],
-    'type': ['int', 'void', 'float'],
+    'type': ['int', 'void', 'float', 'char'],
     'Args': ['Arg', 'Arg, Args'],
     'Arg': ['type id', ''],
     'stmtList': ['stmt', 'stmt stmtList'],
-    'stmt': ['return num;', ''],
+    'stmt': ['returnstmt', ''],
+    'ifstmt': ['if (if_expr) {stmtList}', 'if (if_expr) {stmtList} else {stmtList}'],
+    'if_expr': ['expr relop expr'],
+    'relop': ['<', '<=', '>', '>=', '==', '!='],
+    'returnstmt': ['return num;', 'return id;', 'return;', 'return expr;', 'return character'],
     'local_decls': ['local_decl', 'local_decl local_decls'],
     'local_decl': ['type id;', 'type id = endofDecl;',''],
     'endofDecl': ['num', 'id', 'string', 'character'],#Need to put expressions in this
@@ -51,6 +55,12 @@ class SymbolTable:
         else:
             return None  # Handle the case when the variable is not found
 
+    def get_scope_type(self, scope):
+        if scope in self.symbolTable:
+            return self.symbolTable[scope]['return_type']
+        else:
+            return None
+    
     def add_variable(self, name, type, scope):
         self.symbolTable[scope][name] = [type]
 
@@ -109,7 +119,6 @@ scope = "global"
 
 #main function for the parser
 def parser(tokens):
-    print(tokens)
     parseTree = _parse_program(tokens)
     return parseTree, symbolTable
     '''
@@ -234,7 +243,8 @@ def _parsing_inside_function(tokens, declNode):
     if local_declsNode != None:
         declNode.add_child(local_declsNode)
 
-    stmtList = _parse_stmtList(tokens)
+    stmtListNode = ASTNode("stmtList")
+    stmtList = _parse_stmtList(tokens, stmtListNode)
 
     if stmtList != None:
         declNode.add_child(stmtList)
@@ -338,6 +348,7 @@ def _parse_local_decl(tokens):
     
     return None
 
+#endofDecl -> num | id | string | character
 def _parse_endofDecl(tokens):
     global index
     global scope
@@ -350,16 +361,20 @@ def _parse_endofDecl(tokens):
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                 symbolTable.add_variable(tokens[str(index-3)][cc.TOKEN_INDEX], tokens[str(index-4)][cc.TOKEN_INDEX], scope)
                 symbolTable.add_value(tokens[str(index-3)][cc.TOKEN_INDEX], tokens[str(index-1)][cc.TOKEN_INDEX], scope)
+                #Passing in the name, value, and scope
                 index += 1
                 return endOfDeclNode
+            
         elif tokens[str(index)][cc.TOKEN_INDEX] == '"' or tokens[str(index)][cc.TOKEN_INDEX] == "'":
             index += 1
             if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'string' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'characters':
                 endOfDeclNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
                 index += 2 #We want to skip the closing quote
+
                 if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                     symbolTable.add_variable(tokens[str(index-5)][cc.TOKEN_INDEX], tokens[str(index-6)][cc.TOKEN_INDEX], scope)
                     symbolTable.add_value(tokens[str(index-5)][cc.TOKEN_INDEX], tokens[str(index-2)][cc.TOKEN_INDEX], scope)
+                    #Passing in name, value, and scope for strings/characters we have to push it back further to grab the right tokens
                     index += 1
                     return endOfDeclNode
             
@@ -368,7 +383,7 @@ def _parse_endofDecl(tokens):
 
 #TODO: As of right now we only need to allow for one stmt, we will need to change this to allow for multiple stmts
 #stmtList -> stmt | stmt stmtList
-def _parse_stmtList(tokens, stmtListNode = ASTNode("stmtList")):
+def _parse_stmtList(tokens, stmtListNode):
     stmtNode = _parse_stmt(tokens)
     if stmtNode == None:
         return None
@@ -378,7 +393,7 @@ def _parse_stmtList(tokens, stmtListNode = ASTNode("stmtList")):
         return stmtListNode2
     else:
         stmtListNode.add_child(stmtNode)
-
+        
     return stmtListNode
 
 #TODO: As of right now we aren't checking to see if the return type lines up with the function type
@@ -386,20 +401,42 @@ def _parse_stmtList(tokens, stmtListNode = ASTNode("stmtList")):
 def _parse_stmt(tokens):
     global index
     if tokens[str(index)][cc.TOKEN_INDEX] == 'return':
-        returnNode = ASTNode("return")
-        index += 1
-
-        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier': #Return can be a id or number.
-            numNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
-            returnNode.add_child(numNode)
-            index += 1
-
-            if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-                index += 1
-                return returnNode #We don't need ';' in our AST
+        returnNode = _parse_returnstmt(tokens)
+        print(returnNode)
+        if returnNode != None:
+            return returnNode
+        
+    elif tokens[str(index)][cc.TOKEN_INDEX] == 'if':
+        returnNode = _parse_ifstmt(tokens)
+        if returnNode != None:
+            return returnNode
+        
     return None
 
 
+def _parse_returnstmt(tokens):
+    global index
+    returnNode = ASTNode("return")
+    index += 1
+
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier': #Return can be a id or number.
+        numNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+        returnNode.add_child(numNode)
+        index += 1
+
+        scope_type = symbolTable.get_scope_type(scope)
+        print(scope_type, tokens[str(index-1)][cc.TOKEN_TYPE_INDEX])
+        if scope_type == 'int' and tokens[str(index-1)][cc.TOKEN_TYPE_INDEX] == 'number':
+            if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+                index += 1
+                return returnNode #We don't need ';' in our AST
+            
+        raise(Customerror("Error: Invalid return type"))
+    else:
+        raise(Customerror("Error: Invalid return statement"))
+
+def _parse_ifstmt(tokens):
+    return None
 
 
 
