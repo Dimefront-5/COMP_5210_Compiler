@@ -118,15 +118,16 @@ def Customerror(message, tokens, index):
     for keyIndex in tokens:
         if tokens[keyIndex][cc.LINE_NUMBER_INDEX] == line_number:
             line += tokens[keyIndex][cc.TOKEN_INDEX] + ' '
+
     #Now we want to take the column number of the issue and point an arrow to it
     column_number = tokens[str(index)][cc.COLUMN_NUMBER_INDEX]
     arrow = ''
     for i in range(column_number):
         arrow += ' '
     arrow += '^'
-    #Now we want to combine the line and the arrow
+    
+    #Now we want to combine the line and the arrow and the message
     line += '\n' + arrow
-    #Now we want to combine the line and the error message
     line += '\n' + message + ' on line ' + str(line_number) + ', column ' + str(column_number)
 
     print(line)
@@ -142,7 +143,6 @@ scope = "global"
 
 #main function for the parser
 def parser(tokens):
-    print(tokens)
     parseTree = _parse_program(tokens)
     return parseTree, symbolTable
     '''
@@ -421,13 +421,11 @@ def _parse_stmtList(tokens, stmtListNode):
 
     return stmtListNode
 
-#TODO: As of right now we aren't checking to see if the return type lines up with the function type
-#stmt -> return num; | empty
+#stmt -> return num; | if (if_expr) {stmtList} | empty
 def _parse_stmt(tokens):
     global index
     if tokens[str(index)][cc.TOKEN_INDEX] == 'return':
         returnNode = _parse_returnstmt(tokens)
-        print(returnNode)
         if returnNode != None:
             return returnNode
         
@@ -446,17 +444,22 @@ def _parse_returnstmt(tokens):
 
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier': #Return can be a id or number.
         numNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':#Is our return a variable?
+            idType = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
         returnNode.add_child(numNode)
         index += 1
 
         scope_type = symbolTable.get_scope_type(scope)
-        print(scope_type, tokens[str(index-1)][cc.TOKEN_TYPE_INDEX])
-        if scope_type == 'int' and tokens[str(index-1)][cc.TOKEN_TYPE_INDEX] == 'number':
+        if (scope_type == 'int' or scope_type == 'float') and tokens[str(index-1)][cc.TOKEN_TYPE_INDEX] == 'number': #A number can fit in with both a float and int
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                 index += 1
                 return returnNode #We don't need ';' in our AST
+        elif idType[0] == scope_type: #We are seeing if the type of our variable matches the return type of the function
+            if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+                index += 1
+                return returnNode
             
-        Customerror("Error: Invalid return type", tokens, index)
+        Customerror("Error: Invalid return type", tokens, index-1)
     else:
         Customerror("Error: Invalid return statement", tokens, index)
 
@@ -470,6 +473,7 @@ def _parse_ifstmt(tokens):
         if_exprNode = _parse_if_expr(tokens)
         if if_exprNode != None:
             return if_exprNode
+    Customerror("Error: Invalid if statement", tokens, index)
     return None
 
 #TODO: Refactor, add else stmtList
@@ -479,7 +483,6 @@ def _parse_if_expr(tokens):
     global index
     
     expr = _parseExpr(tokens, str(index), ASTNode("Expr"))
-    print(expr)
     exprString = _combineLeafNodes(expr) #Since we are now using an AST instead of a FULL parse tree, I need to cut down the parse tree that expr did create. I do this by combining all of the leaf nodes into a string
     print(exprString)                   #In the future I will probably refactor expr to return a string instead of a node, but for now this works
     index +=1
@@ -493,10 +496,10 @@ def _parse_if_expr(tokens):
             if second_exprString != None:
                 if tokens[str(index)][cc.TOKEN_INDEX] == ')':
                     index += 1
-                    if_expr = 'if (' + exprString + relOp + second_exprString + ')'
+                    if_expr = 'if (' + exprString + relOp + second_exprString + ')' #Creating our if_expr string. I don't want to create individual nodes for each token
                     if tokens[str(index)][cc.TOKEN_INDEX] == '{':
                         index += 1
-                        stmtList = _parse_stmtList(tokens, ASTNode("stmtList"))
+                        stmtList = _parse_stmtList(tokens, ASTNode("stmtList")) #Only allowing stmts for now
                         if stmtList != None:
                             if tokens[str(index)][cc.TOKEN_INDEX] == '}':
                                 index += 1
