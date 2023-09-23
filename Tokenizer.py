@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 9/21/2023
+-@date: 9/23/2023
 
 - Tokenizes our input file and returns a dictionary of tokens and their respective types
 
@@ -126,13 +126,15 @@ def keyword_detector(line, column_number):
         keyword = 'continue'
         skip = 7
 
-    if keyword != False and (line[column_number + skip + 1] == ' ' or line[column_number + skip + 1] == '('): # if the keyword doesn't have a space after it isn't a keyword
-        if column_number - 1 >= 0:
-            if line[column_number - 1] == ' ': #In the case this is a c one liner, we want to make sure the character before is a space or it is invalid
+    if column_number + skip + 1 < len(line): #if the keyword doesn't have a space after it isn't a keyword
+        if keyword != False and (line[column_number + skip + 1] == ' ' or line[column_number + skip + 1] == '('): # if the keyword doesn't have a space after it isn't a keyword
+            if column_number - 1 >= 0:
+                if line[column_number - 1] == ' ': #In the case this is a c one liner, we want to make sure the character before is a space or it is invalid
+                    return keyword, skip
+                
+            else: #if the keyword is at the beginning of the line
                 return keyword, skip
-            
-        else: #if the keyword is at the beginning of the line
-            return keyword, skip
+
         
     return False, 0
 

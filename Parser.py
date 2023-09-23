@@ -1,15 +1,16 @@
 '''
 -@author: Tyler Ray
--@date: 9/21/2023
+-@date: 9/23/2023
 
-- Will parse through our token list and output a parse tree
-- Only works for expr as of right now
+- Will parse through our token list and output a AST along with a symbol table
+- Works for the below grammar
 - ***WORK IN PROGRESS***
 '''
 import CompilerConstants as cc
-from anytree import RenderTree
+from anytree import RenderTree #Our fancy printing with AST
 import re
 import sys
+
 '''
 Need to change grammar to:
 Expr -> Term + Expr, Term - Expr, Term
@@ -27,12 +28,12 @@ grammar = {
     'Arg': ['type id', ''],
     'stmtList': ['stmt', 'stmt stmtList'],
     'stmt': ['returnstmt', ''],
-    'ifstmt': ['if (if_expr) \{stmtList\}', 'if (if_expr) \{stmtList\} else \{stmtList\}'], #doesn't currently allow else stmtList
-    'if_expr': ['expr relop expr'],
+    'ifstmt': ['if (if_expr) \{stmtList\}', 'if (if_expr) \{stmtList\} else \{stmtList\}'],
+    'if_expr': ['expr relop expr'], #I know you can have an if with just a number, but for now I am not allowing it
     'relop': [r'^==$|^!=$|^>$|^>=$|^<$|^<=$'],
     'returnstmt': ['return num;', 'return id;', 'return;', 'return expr;', 'return character'],
     'local_decls': ['local_decl', 'local_decl local_decls'],
-    'local_decl': ['type id;', 'type id = endofDecl;',''],
+    'local_decl': ['type id;', 'type id = endofDecl;',''], # we aren't going to check and see if the endofDecl is valid, we will just assume it is. TODO: check if it is valid
     'endofDecl': ['num', 'id', 'string', 'character'],#Need to put expressions in this
     #------Previous grammar is below. New Grammar is above
     'Expr': ['Expr + Term', 'Expr - Term', 'Term'],
@@ -201,7 +202,6 @@ def _parse_program(tokens):
 
     return programNode
 
-#TODO: Need to allow for multiple decls
 #declList -> decl declList | decl
 def _parse_declList(tokens, declListNode = ASTNode("declList")):
     global scope
@@ -463,6 +463,7 @@ def _parse_returnstmt(tokens):
     else:
         Customerror("Error: Invalid return statement", tokens, index)
 
+#ifstmt -> if (if_expr) {stmtList} | if (if_expr) {stmtList} else {stmtList}
 def _parse_ifstmt(tokens):
     global index
     
@@ -471,10 +472,40 @@ def _parse_ifstmt(tokens):
     if tokens[str(index)][cc.TOKEN_INDEX] == '(':
         index += 1
         if_exprNode = _parse_if_expr(tokens)
-        if if_exprNode != None:
+        if if_exprNode == None:
+            Customerror("Error: Invalid if statement", tokens, index)
+
+        elif tokens[str(index)][cc.TOKEN_INDEX] == 'else':#Checking to see if this is an if else stmt
+            else_exprNode = _parse_else(tokens)
+            if_exprNode.add_child(else_exprNode)
             return if_exprNode
+            
+
     Customerror("Error: Invalid if statement", tokens, index)
     return None
+
+# if (if_expr) {stmtList} else {stmtList}
+def _parse_else(tokens):
+
+    global index
+    errorstmt = 'Error: Missing a \'{\' in else stmt'#Generating better help messages for the user
+    index += 1
+
+    if tokens[str(index)][cc.TOKEN_INDEX] == '{':
+        index += 1
+        stmtList = _parse_stmtList(tokens, ASTNode("stmtList"))
+
+        errorstmt = 'Error: Missing a \'}\' in else stmt' #Generating better help messages for the user
+
+        if tokens[str(index)][cc.TOKEN_INDEX] == '}':
+            index += 1
+            else_exprNode = ASTNode("else")
+            if stmtList != None:#An else stmt can have nothing within it, so we don't want to add a child if it is empty
+                else_exprNode.add_child(stmtList)
+
+            return else_exprNode
+        
+    Customerror(errorstmt, tokens, index) #we only hit this if there is an error
 
 #TODO: Refactor, add else stmtList
 #if_expr -> expr relop expr
@@ -483,9 +514,10 @@ def _parse_if_expr(tokens):
     global index
     
     expr = _parseExpr(tokens, str(index), ASTNode("Expr"))
-    exprString = _combineLeafNodes(expr) #Since we are now using an AST instead of a FULL parse tree, I need to cut down the parse tree that expr did create. I do this by combining all of the leaf nodes into a string
+    exprString = _combineLeafNodes(expr) #Since we are now using an AST instead of a full parse tree, I need to cut down the parse tree that expr did create. I do this by combining all of the leaf nodes into a string
     print(exprString)                   #In the future I will probably refactor expr to return a string instead of a node, but for now this works
     index +=1
+
     if exprString != None:
         if re.match(grammar['relop'][0], tokens[str(index)][cc.TOKEN_INDEX]):
             relOp = tokens[str(index)][cc.TOKEN_INDEX]
@@ -493,14 +525,18 @@ def _parse_if_expr(tokens):
             second_expr = _parseExpr(tokens, str(index), ASTNode("Expr"))
             second_exprString = _combineLeafNodes(second_expr)
             index += 1
+
             if second_exprString != None:
                 if tokens[str(index)][cc.TOKEN_INDEX] == ')':
                     index += 1
                     if_expr = 'if (' + exprString + relOp + second_exprString + ')' #Creating our if_expr string. I don't want to create individual nodes for each token
+
                     if tokens[str(index)][cc.TOKEN_INDEX] == '{':
                         index += 1
                         stmtList = _parse_stmtList(tokens, ASTNode("stmtList")) #Only allowing stmts for now
+
                         if stmtList != None:
+
                             if tokens[str(index)][cc.TOKEN_INDEX] == '}':
                                 index += 1
                                 if_exprNode = ASTNode(if_expr)
