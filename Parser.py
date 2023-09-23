@@ -9,6 +9,7 @@
 import CompilerConstants as cc
 from anytree import RenderTree
 import re
+import sys
 '''
 Need to change grammar to:
 Expr -> Term + Expr, Term - Expr, Term
@@ -26,7 +27,7 @@ grammar = {
     'Arg': ['type id', ''],
     'stmtList': ['stmt', 'stmt stmtList'],
     'stmt': ['returnstmt', ''],
-    'ifstmt': ['if (if_expr) {stmtList}', 'if (if_expr) {stmtList} else {stmtList}'],
+    'ifstmt': ['if (if_expr) \{stmtList\}', 'if (if_expr) \{stmtList\} else \{stmtList\}'], #doesn't currently allow else stmtList
     'if_expr': ['expr relop expr'],
     'relop': [r'^==$|^!=$|^>$|^>=$|^<$|^<=$'],
     'returnstmt': ['return num;', 'return id;', 'return;', 'return expr;', 'return character'],
@@ -106,8 +107,30 @@ class ASTNode:
             output += "%s%s" % (pre, node.value) + "\n"
         return output
 
-class Customerror(Exception):
-    pass
+
+#Will take a list of tokens and the index of the token that caused the error and return a string with the error message pointing to the issue
+#I had github copilot generate this for me.
+def Customerror(message, tokens, index):
+    #first we want to find the line number of the token that caused the error
+    line_number = tokens[str(index)][cc.LINE_NUMBER_INDEX]
+    #now we want to take every token within that line number and combine it into a string
+    line = ''
+    for keyIndex in tokens:
+        if tokens[keyIndex][cc.LINE_NUMBER_INDEX] == line_number:
+            line += tokens[keyIndex][cc.TOKEN_INDEX] + ' '
+    #Now we want to take the column number of the issue and point an arrow to it
+    column_number = tokens[str(index)][cc.COLUMN_NUMBER_INDEX]
+    arrow = ''
+    for i in range(column_number):
+        arrow += ' '
+    arrow += '^'
+    #Now we want to combine the line and the arrow
+    line += '\n' + arrow
+    #Now we want to combine the line and the error message
+    line += '\n' + message + ' on line ' + str(line_number) + ', column ' + str(column_number)
+
+    print(line)
+    sys.exit()
 
 
 global index
@@ -119,6 +142,7 @@ scope = "global"
 
 #main function for the parser
 def parser(tokens):
+    print(tokens)
     parseTree = _parse_program(tokens)
     return parseTree, symbolTable
     '''
@@ -347,6 +371,7 @@ def _parse_local_decl(tokens):
     
     return None
 
+#TODO: Refactor
 #endofDecl -> num | id | string | character
 def _parse_endofDecl(tokens):
     global index
@@ -379,10 +404,9 @@ def _parse_endofDecl(tokens):
                     index += 1
                     return second_half_of_decl
             
-    Customerror("Error: Invalid local_decl")
+    Customerror("Error: Invalid local_decl", tokens, index)
     return None
 
-#TODO: As of right now we only need to allow for one stmt, we will need to change this to allow for multiple stmts
 #stmtList -> stmt | stmt stmtList
 def _parse_stmtList(tokens, stmtListNode):
     stmtNode = _parse_stmt(tokens)
@@ -432,9 +456,9 @@ def _parse_returnstmt(tokens):
                 index += 1
                 return returnNode #We don't need ';' in our AST
             
-        raise(Customerror("Error: Invalid return type"))
+        Customerror("Error: Invalid return type", tokens, index)
     else:
-        raise(Customerror("Error: Invalid return statement"))
+        Customerror("Error: Invalid return statement", tokens, index)
 
 def _parse_ifstmt(tokens):
     global index
@@ -448,13 +472,15 @@ def _parse_ifstmt(tokens):
             return if_exprNode
     return None
 
-
-import sys
+#TODO: Refactor, add else stmtList
+#if_expr -> expr relop expr
+#ifstmt -> if (if_expr) {stmtList}
 def _parse_if_expr(tokens):
     global index
     
     expr = _parseExpr(tokens, str(index), ASTNode("Expr"))
-    exprString = combineLeafNodes(expr) #Since we are now using an AST instead of a FULL parse tree, I need to cut down the parse tree that expr did create. I do this by combining all of the leaf nodes into a string
+    print(expr)
+    exprString = _combineLeafNodes(expr) #Since we are now using an AST instead of a FULL parse tree, I need to cut down the parse tree that expr did create. I do this by combining all of the leaf nodes into a string
     print(exprString)                   #In the future I will probably refactor expr to return a string instead of a node, but for now this works
     index +=1
     if exprString != None:
@@ -462,7 +488,7 @@ def _parse_if_expr(tokens):
             relOp = tokens[str(index)][cc.TOKEN_INDEX]
             index += 1
             second_expr = _parseExpr(tokens, str(index), ASTNode("Expr"))
-            second_exprString = combineLeafNodes(second_expr)
+            second_exprString = _combineLeafNodes(second_expr)
             index += 1
             if second_exprString != None:
                 if tokens[str(index)][cc.TOKEN_INDEX] == ')':
@@ -480,6 +506,7 @@ def _parse_if_expr(tokens):
         return expr
     
 
+#These are created to help combine a parse tree into a string
 def _combineLeafNodesToString(node, result):
     if len(node.children) == 0:
         result.append(node.value)
@@ -487,7 +514,7 @@ def _combineLeafNodesToString(node, result):
         for child in node.children:
             _combineLeafNodesToString(child, result)
 
-def combineLeafNodes(node):
+def _combineLeafNodes(node):
     result = []
     _combineLeafNodesToString(node, result)
     return ''.join(result)
@@ -497,7 +524,7 @@ def combineLeafNodes(node):
 
 
 
-
+#TODO: Fix up, currently does not allow for expr within an if. Probably doesn't allow for expr within a return either, maybe no where.
 #Expr parser ----------------
 
 #Parses expr with addOPs, will first parse through the expr before the addOP, we will add that node and a new node for our addOP to our parsetree, then parse through the term after the addOP
