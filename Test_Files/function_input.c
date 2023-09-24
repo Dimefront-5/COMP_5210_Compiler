@@ -8,7 +8,7 @@ int main (int a, char b, float d) {
 }
 
 int choice () {
-    if (2 == 1) {
+    if (5 *2 == 1) {
         return 0;
         return 1;
     }

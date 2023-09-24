@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 9/23/2023
+-@date: 9/24/2023
 
 - Will parse through our token list and output a AST along with a symbol table
 - Works for the below grammar
@@ -28,14 +28,14 @@ grammar = {
     'Arg': ['type id', ''],
     'stmtList': ['stmt', 'stmt stmtList'],
     'stmt': ['returnstmt', 'ifstmt', '', 'assignstmt'],
-    'assignstmt': ['id = endofDecl;', 'id = expr;'],
+    'assignstmt': ['id = endofDecl;'],
     'ifstmt': ['if (if_expr) \{stmtList\}', 'if (if_expr) \{stmtList\} else \{stmtList\}'],
     'if_expr': ['expr relop expr'], #I know you can have an if with just a number, but for now I am not allowing it
     'relop': [r'^==$|^!=$|^>$|^>=$|^<$|^<=$'],
     'returnstmt': ['return num;', 'return id;', 'return;', 'return expr;', 'return character'],
     'local_decls': ['local_decl', 'local_decl local_decls'],
     'local_decl': ['type id;', 'type id = endofDecl;',''], # we aren't going to check and see if the endofDecl is valid, we will just assume it is. TODO: check if it is valid
-    'endofDecl': ['num', 'id', 'string', 'character'],#Need to put expressions in this
+    'endofDecl': ['expr', 'string', 'character'],#Need to put expressions in this
     #------Previous grammar is below. New Grammar is above
     'Expr': ['Term + Expr', 'Term - Expr', 'Term'],
     'Term': ['Factor * Term', 'Factor / Term', 'Factor'],
@@ -108,6 +108,14 @@ class ASTNode:
         for pre, fill, node in RenderTree(self):
             output += "%s%s" % (pre, node.value) + "\n"
         return output
+    
+    def ast_to_expr(self):
+        if self.value == "+":
+            return f"({self.children[0].ast_to_expr()} + {self.children[1].ast_to_expr()})"
+        elif self.value == "*":
+            return f"({self.children[0].ast_to_expr()} * {self.children[1].ast_to_expr()})"
+        else:
+            return str(self.value)
 
 
 #Will take a list of tokens and the index of the token that caused the error and return a string with the error message pointing to the issue
@@ -145,8 +153,7 @@ scope = "global"
 
 #main function for the parser
 def parser(tokens):
-    parseTree = _parseExpr(tokens)
-    #parseTree = _parse_program(tokens)
+    parseTree = _parse_program(tokens)
     return parseTree, symbolTable
     '''
     Keeping this for now, probably will not need it later
@@ -349,63 +356,64 @@ def _parse_local_decls(tokens, local_declsNode = ASTNode("local_decls")):
 def _parse_local_decl(tokens):
     global index
     global scope
-    local_decl = ''
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
-        local_decl = tokens[str(index)][cc.TOKEN_INDEX]
+        local_decl = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
         index += 1
 
         if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
-            local_decl += ' ' + tokens[str(index)][cc.TOKEN_INDEX]
+            id_decl = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+            id_decl.add_child(local_decl)
             index += 1
             
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                 symbolTable.add_variable(tokens[str(index-1)][cc.TOKEN_INDEX], tokens[str(index-2)][cc.TOKEN_INDEX], scope) # we wait to add this till we know it is valid. 
                 #Passing in the name of the variable, the type of the variable, and the scope of the variable - Name(id), Type, Scope(Will be function name)
                 index += 1
-                return local_decl
+                return id_decl
             else:
-                endOfDecl = _parse_endofDecl(tokens)
+                endOfDecl = _parse_endofDecl(tokens, id_decl)
                 if endOfDecl != None:
-                    local_decl += endOfDecl
-                    local_decl = ASTNode(local_decl)
-                    return local_decl
+                    return id_decl
                 
     
     return None
 
 #TODO: Refactor
-#endofDecl -> num | id | string | character
-def _parse_endofDecl(tokens):
+#endofDecl -> expr | string | character
+def _parse_endofDecl(tokens, local_decl):
     global index
     global scope
-    second_half_of_decl = ''
+    
     if tokens[str(index)][cc.TOKEN_INDEX] == '=':
-        second_half_of_decl += ' ='
         index += 1
-        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
-            second_half_of_decl += ' ' + tokens[str(index)][cc.TOKEN_INDEX]
-            index += 1
+        exprNode = _parseExpr(tokens)
+
+        if exprNode != None:
+            local_decl.add_child(exprNode)
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-                symbolTable.add_variable(tokens[str(index-3)][cc.TOKEN_INDEX], tokens[str(index-4)][cc.TOKEN_INDEX], scope)
-                symbolTable.add_value(tokens[str(index-3)][cc.TOKEN_INDEX], tokens[str(index-1)][cc.TOKEN_INDEX], scope)
+                print(exprNode.ast_to_expr())
+                symbolTable.add_variable(tokens[str(index-3)][cc.TOKEN_INDEX], tokens[str(index - 4)][cc.TOKEN_INDEX], scope)
+                #Pass in the name, type, and scope
+                symbolTable.add_value(tokens[str(index-3)][cc.TOKEN_INDEX], exprNode.ast_to_expr(), scope)
                 #Passing in the name, value, and scope
                 index += 1
-                return second_half_of_decl
+                return local_decl
             
         elif tokens[str(index)][cc.TOKEN_INDEX] == '"' or tokens[str(index)][cc.TOKEN_INDEX] == "'":
             index += 1
-            second_half_of_decl += ' ' + tokens[str(index-1)][cc.TOKEN_INDEX]
+            second_half_of_decl = tokens[str(index-1)][cc.TOKEN_INDEX]
             if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'string' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'characters':
                 second_half_of_decl += tokens[str(index)][cc.TOKEN_INDEX] + tokens[str(index-1)][cc.TOKEN_INDEX]
                 index += 2 #We want to skip the closing quote
 
+                local_decl.add_child(ASTNode(second_half_of_decl))
                 if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                     symbolTable.add_variable(tokens[str(index-5)][cc.TOKEN_INDEX], tokens[str(index-6)][cc.TOKEN_INDEX], scope)
                     symbolTable.add_value(tokens[str(index-5)][cc.TOKEN_INDEX], tokens[str(index-2)][cc.TOKEN_INDEX], scope)
                     #Passing in name, value, and scope for strings/characters we have to push it back further to grab the right tokens
                     index += 1
                     return second_half_of_decl
-            
+                
     Customerror("Error: Invalid local_decl", tokens, index)
     return None
 
@@ -463,15 +471,15 @@ def _parse_assignstmt(tokens, idType):
 
     if tokens[str(index)][cc.TOKEN_INDEX] == '=':
         index += 1
-        exprNode = _parseExpr(tokens, str(index), ASTNode("Expr"))
+        exprNode = _parseExpr(tokens)
+        exprString = exprNode.ast_to_expr()
+        print(exprString)
 
         if exprNode != None:
             errormsg = 'Error: Invalid assignment, expected ' + idType + ' but received a non-' + idType + ' value'
-
+            print(idType)
             if idType == 'int' or idType == 'float':
-                exprNodeString = _combineLeafNodes(exprNode)
-                assignstmt += ' = ' + exprNodeString
-                index += 1
+                assignstmt += ' = ' + exprString
                 if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                     index += 1
                     return ASTNode(assignstmt)
@@ -480,7 +488,7 @@ def _parse_assignstmt(tokens, idType):
             if idType == 'char':
                 index += 1
                 assignstmt += ' = ' + tokens[str(index-1)][cc.TOKEN_INDEX] + tokens[str(index)][cc.TOKEN_INDEX] + tokens[str(index+1)][cc.TOKEN_INDEX]#We are adding the quotes and the character/string
-                index += 2
+                index += 1
                 if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                     index += 1
                     return ASTNode(assignstmt)
@@ -497,6 +505,7 @@ def _parse_returnstmt(tokens):
     index += 1
 
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier': #Return can be a id or number.
+        
         numNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
         if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':#Is our return a variable?
             idType = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
@@ -558,7 +567,9 @@ def _parse_else(tokens):
             index += 1
             else_exprNode = ASTNode("else")
             if stmtList != None:#An else stmt can have nothing within it, so we don't want to add a child if it is empty
-                else_exprNode.add_child(stmtList)
+                bracketNode = ASTNode('{ }')
+                bracketNode.add_child(stmtList)
+                else_exprNode.add_child(bracketNode)
 
             return else_exprNode
         
@@ -570,23 +581,25 @@ def _parse_else(tokens):
 def _parse_if_expr(tokens):
     global index
     
-    expr = _parseExpr(tokens, str(index), ASTNode("Expr"))
-    exprString = _combineLeafNodes(expr) #Since we are now using an AST instead of a full parse tree, I need to cut down the parse tree that expr did create. I do this by combining all of the leaf nodes into a string
-    print(exprString)                   #In the future I will probably refactor expr to return a string instead of a node, but for now this works
-    index +=1
+    expr = _parseExpr(tokens)
+    exprString = expr.ast_to_expr()  #We are turning the expr into a string for our parse tree. I don't want to create individual nodes for each token just for the if stmt.
 
     if exprString != None:
         if re.match(grammar['relop'][0], tokens[str(index)][cc.TOKEN_INDEX]):
             relOp = tokens[str(index)][cc.TOKEN_INDEX]
             index += 1
-            second_expr = _parseExpr(tokens, str(index), ASTNode("Expr"))
-            second_exprString = _combineLeafNodes(second_expr)
-            index += 1
+            second_expr = _parseExpr(tokens)
+            second_exprString = second_expr.ast_to_expr()
 
             if second_exprString != None:
                 if tokens[str(index)][cc.TOKEN_INDEX] == ')':
                     index += 1
-                    if_expr = 'if (' + exprString + relOp + second_exprString + ')' #Creating our if_expr string. I don't want to create individual nodes for each token
+                    if_expr = ASTNode('if') #Creating our if_expr string. I don't want to create individual nodes for each token
+                    bracket_Node = ASTNode('( )')
+                    bracket_Node.add_child(expr)
+                    bracket_Node.add_child(ASTNode(relOp))
+                    bracket_Node.add_child(second_expr)
+                    if_expr.add_child(bracket_Node)
 
                     if tokens[str(index)][cc.TOKEN_INDEX] == '{':
                         index += 1
@@ -596,9 +609,10 @@ def _parse_if_expr(tokens):
 
                             if tokens[str(index)][cc.TOKEN_INDEX] == '}':
                                 index += 1
-                                if_exprNode = ASTNode(if_expr)
-                                if_exprNode.add_child(stmtList)
-                                return if_exprNode
+                                bracketNode = ASTNode('{ }')
+                                bracketNode.add_child(stmtList)
+                                if_expr.add_child(bracketNode)
+                                return if_expr
         return expr
     
 
