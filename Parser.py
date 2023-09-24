@@ -27,7 +27,8 @@ grammar = {
     'Args': ['Arg', 'Arg, Args'],
     'Arg': ['type id', ''],
     'stmtList': ['stmt', 'stmt stmtList'],
-    'stmt': ['returnstmt', ''],
+    'stmt': ['returnstmt', 'ifstmt', '', 'assignstmt'],
+    'assignstmt': ['id = endofDecl;', 'id = expr;'],
     'ifstmt': ['if (if_expr) \{stmtList\}', 'if (if_expr) \{stmtList\} else \{stmtList\}'],
     'if_expr': ['expr relop expr'], #I know you can have an if with just a number, but for now I am not allowing it
     'relop': [r'^==$|^!=$|^>$|^>=$|^<$|^<=$'],
@@ -421,7 +422,7 @@ def _parse_stmtList(tokens, stmtListNode):
 
     return stmtListNode
 
-#stmt -> return num; | if (if_expr) {stmtList} | empty
+#stmt -> returnstmt | ifstmt | assignstmt | empty
 def _parse_stmt(tokens):
     global index
     if tokens[str(index)][cc.TOKEN_INDEX] == 'return':
@@ -434,7 +435,59 @@ def _parse_stmt(tokens):
         if returnNode != None:
             return returnNode
         
+    elif tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+        iftype = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
+        globalisType = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], "global") #Checking to see if the variable is declared on a global or local scale at least.
+
+        if iftype != None:
+            returnNode = _parse_assignstmt(tokens, iftype[0])
+            if returnNode != None:
+                return returnNode
+            
+        elif globalisType != None:
+            returnNode = _parse_assignstmt(tokens, globalisType[0])
+            if returnNode != None:
+                return returnNode
+        else:
+            Customerror("Error: Undeclared identifier", tokens, index)
+        
     return None
+
+
+def _parse_assignstmt(tokens, idType):
+    global index
+    assignstmt = tokens[str(index)][cc.TOKEN_INDEX]
+    index += 1
+    errormsg = 'Error: Invalid assignment'
+
+    if tokens[str(index)][cc.TOKEN_INDEX] == '=':
+        index += 1
+        exprNode = _parseExpr(tokens, str(index), ASTNode("Expr"))
+
+        if exprNode != None:
+            errormsg = 'Error: Invalid assignment, expected ' + idType + ' but received a non-' + idType + ' value'
+
+            if idType == 'int' or idType == 'float':
+                exprNodeString = _combineLeafNodes(exprNode)
+                assignstmt += ' = ' + exprNodeString
+                index += 1
+                if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+                    index += 1
+                    return ASTNode(assignstmt)
+        
+        elif tokens[str(index)][cc.TOKEN_INDEX] == '\'' or tokens[str(index)][cc.TOKEN_INDEX] == '\"':
+            if idType == 'char':
+                index += 1
+                assignstmt += ' = ' + tokens[str(index-1)][cc.TOKEN_INDEX] + tokens[str(index)][cc.TOKEN_INDEX] + tokens[str(index+1)][cc.TOKEN_INDEX]#We are adding the quotes and the character/string
+                index += 2
+                if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+                    index += 1
+                    return ASTNode(assignstmt)
+            errormsg = 'Error: Invalid assignment, expected ' + idType + ' but received a non-' + idType + ' value'
+            
+    Customerror(errormsg, tokens, index)
+
+        
 
 
 def _parse_returnstmt(tokens):
@@ -460,8 +513,11 @@ def _parse_returnstmt(tokens):
                 return returnNode
             
         Customerror("Error: Invalid return type", tokens, index-1)
-    else:
-        Customerror("Error: Invalid return statement", tokens, index)
+    elif tokens[str(index)][cc.TOKEN_INDEX] == ';': #If we have a return with no value
+        index += 1
+        return returnNode
+    
+    Customerror("Error: Invalid return statement", tokens, index)
 
 #ifstmt -> if (if_expr) {stmtList} | if (if_expr) {stmtList} else {stmtList}
 def _parse_ifstmt(tokens):
