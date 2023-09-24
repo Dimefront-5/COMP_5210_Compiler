@@ -11,7 +11,7 @@ int main (int a, char b, float d) {
 }
 
 int choice () {
-    if (5 *2 == 1) {
+    if (5 *2 + (7*8) == 1) {
         return 0;
         return 1;
     }
@@ -19,4 +19,9 @@ int choice () {
         return 2;
     }
     return 0;
+}
+
+
+char choice2 () {
+
 }
