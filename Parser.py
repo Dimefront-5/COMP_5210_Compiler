@@ -35,7 +35,7 @@ grammar = {
     'returnstmt': ['return num;', 'return id;', 'return;', 'return expr;', 'return character'],
     'local_decls': ['local_decl', 'local_decl local_decls'],
     'local_decl': ['type id;', 'type id = endofDecl;',''], # we aren't going to check and see if the endofDecl is valid, we will just assume it is. TODO: check if it is valid
-    'endofDecl': ['expr', 'string', 'character'],#Need to put expressions in this
+    'endofDecl': ['expr', 'string', 'character'],
     #------Previous grammar is below. New Grammar is above
     'Expr': ['Term + Expr', 'Term - Expr', 'Term'],
     'Term': ['Factor * Term', 'Factor / Term', 'Factor'],
@@ -74,7 +74,10 @@ class SymbolTable:
         self.symbolTable[name]['args'] = params
 
     def add_value(self, name, value, scope):
-        self.symbolTable[scope][name].append(value)
+        if name in self.symbolTable[scope]:
+            self.symbolTable[scope][name] = [self.symbolTable[scope][name][0], value]
+        else:
+            self.symbolTable[scope][name].append(value)
 
 
     def __str__(self):
@@ -153,25 +156,9 @@ scope = "global"
 
 #main function for the parser
 def parser(tokens):
+    symbolTable.add_scope("global", "void", None)
     parseTree = _parse_program(tokens)
     return parseTree, symbolTable
-    '''
-    Keeping this for now, probably will not need it later
-    parseTree = ASTNode("Expr") #Start with an expr node
-
-    indexofFirstToken = 0
-    parseTree = _parseExpr(tokens, str(indexofFirstToken), parseTree)
-
-    if parseTree == None:
-        return None
-
-    isASTValid = _parseValidation(tokens, parseTree)
-
-    if isASTValid == True:
-        return parseTree
-    else:
-        return None
-    '''
 
 
 #----- Inward facing modules
@@ -241,20 +228,26 @@ def _parse_decl(tokens):
 
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
         typeNode = ASTNode("type")
-        typeNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
-        declNode.add_child(typeNode)
+        declType = tokens[str(index)][cc.TOKEN_INDEX]
+        typeNode.add_child(ASTNode(declType))
 
-        scope_type = tokens[str(index)][cc.TOKEN_INDEX]
         index += 1
         
         if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
             idNode = ASTNode("id")
-            idNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
-            declNode.add_child(idNode)
+            declId = tokens[str(index)][cc.TOKEN_INDEX]
+            idNode.add_child(ASTNode(declId))
 
-            scope = tokens[str(index)][cc.TOKEN_INDEX]
+            
             index += 1
+
             if tokens[str(index)][cc.TOKEN_INDEX] == '(':
+                scope_type = tokens[str(index-2)][cc.TOKEN_INDEX]
+                scope = tokens[str(index-1)][cc.TOKEN_INDEX]
+
+                declNode.add_child(idNode)
+                declNode.add_child(typeNode)
+
                 declNode, args = _setup_parse_args(tokens, declNode)
                 symbolTable.add_scope(scope, scope_type, args)
 
@@ -266,13 +259,23 @@ def _parse_decl(tokens):
                             index += 1
                             return declNode
                         
+            elif tokens[str(index)][cc.TOKEN_INDEX] == '=':
+                global_decl = _parse_endofDecl(tokens, idNode)
+                print(global_decl, "hello")
+                if global_decl != None:
+                    declNode.add_child(global_decl)
+                    print(declNode)
+                    return declNode
+                
+
     return None
 
 def _parsing_inside_function(tokens, declNode):
     global index
-
+    global scope
     index += 1
     local_declsNode = _parse_local_decls(tokens)
+
     if local_declsNode != None:
         declNode.add_child(local_declsNode)
 
@@ -312,6 +315,7 @@ def _parse_Args(tokens, argsNode):
         argNode2.add_child(argNode1)
 
         return argNode2, initialArgs
+    
     else: #if no more args
         argsNode.add_child(argNode1)
         return argsNode, initialArgs
@@ -370,6 +374,7 @@ def _parse_local_decl(tokens):
                 #Passing in the name of the variable, the type of the variable, and the scope of the variable - Name(id), Type, Scope(Will be function name)
                 index += 1
                 return id_decl
+            
             else:
                 endOfDecl = _parse_endofDecl(tokens, id_decl)
                 if endOfDecl != None:
@@ -387,11 +392,9 @@ def _parse_endofDecl(tokens, local_decl):
     if tokens[str(index)][cc.TOKEN_INDEX] == '=':
         index += 1
         exprNode = _parseExpr(tokens)
-
         if exprNode != None:
             local_decl.add_child(exprNode)
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-                print(exprNode.ast_to_expr())
                 symbolTable.add_variable(tokens[str(index-3)][cc.TOKEN_INDEX], tokens[str(index - 4)][cc.TOKEN_INDEX], scope)
                 #Pass in the name, type, and scope
                 symbolTable.add_value(tokens[str(index-3)][cc.TOKEN_INDEX], exprNode.ast_to_expr(), scope)
@@ -402,7 +405,9 @@ def _parse_endofDecl(tokens, local_decl):
         elif tokens[str(index)][cc.TOKEN_INDEX] == '"' or tokens[str(index)][cc.TOKEN_INDEX] == "'":
             index += 1
             second_half_of_decl = tokens[str(index-1)][cc.TOKEN_INDEX]
+            
             if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'string' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'characters':
+
                 second_half_of_decl += tokens[str(index)][cc.TOKEN_INDEX] + tokens[str(index-1)][cc.TOKEN_INDEX]
                 index += 2 #We want to skip the closing quote
 
@@ -412,7 +417,7 @@ def _parse_endofDecl(tokens, local_decl):
                     symbolTable.add_value(tokens[str(index-5)][cc.TOKEN_INDEX], tokens[str(index-2)][cc.TOKEN_INDEX], scope)
                     #Passing in name, value, and scope for strings/characters we have to push it back further to grab the right tokens
                     index += 1
-                    return second_half_of_decl
+                    return local_decl
                 
     Customerror("Error: Invalid local_decl", tokens, index)
     return None
@@ -449,12 +454,12 @@ def _parse_stmt(tokens):
         globalisType = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], "global") #Checking to see if the variable is declared on a global or local scale at least.
 
         if iftype != None:
-            returnNode = _parse_assignstmt(tokens, iftype[0])
+            returnNode = _parse_assignstmt(tokens, iftype[0], scope)
             if returnNode != None:
                 return returnNode
             
         elif globalisType != None:
-            returnNode = _parse_assignstmt(tokens, globalisType[0])
+            returnNode = _parse_assignstmt(tokens, globalisType[0], "global")
             if returnNode != None:
                 return returnNode
         else:
@@ -463,7 +468,7 @@ def _parse_stmt(tokens):
     return None
 
 
-def _parse_assignstmt(tokens, idType):
+def _parse_assignstmt(tokens, idType, variableScope):
     global index
     assignstmt = tokens[str(index)][cc.TOKEN_INDEX]
     index += 1
@@ -473,12 +478,12 @@ def _parse_assignstmt(tokens, idType):
         index += 1
         exprNode = _parseExpr(tokens)
         exprString = exprNode.ast_to_expr()
-        print(exprString)
 
         if exprNode != None:
             errormsg = 'Error: Invalid assignment, expected ' + idType + ' but received a non-' + idType + ' value'
-            print(idType)
+
             if idType == 'int' or idType == 'float':
+                symbolTable.add_value(tokens[str(index-3)][cc.TOKEN_INDEX], exprString, variableScope)
                 assignstmt += ' = ' + exprString
                 if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                     index += 1
@@ -575,14 +580,13 @@ def _parse_else(tokens):
         
     Customerror(errorstmt, tokens, index) #we only hit this if there is an error
 
-#TODO: Refactor, add else stmtList
 #if_expr -> expr relop expr
 #ifstmt -> if (if_expr) {stmtList}
 def _parse_if_expr(tokens):
     global index
     
     expr = _parseExpr(tokens)
-    exprString = expr.ast_to_expr()  #We are turning the expr into a string for our parse tree. I don't want to create individual nodes for each token just for the if stmt.
+    exprString = expr.ast_to_expr() 
 
     if exprString != None:
         if re.match(grammar['relop'][0], tokens[str(index)][cc.TOKEN_INDEX]):
@@ -594,11 +598,13 @@ def _parse_if_expr(tokens):
             if second_exprString != None:
                 if tokens[str(index)][cc.TOKEN_INDEX] == ')':
                     index += 1
-                    if_expr = ASTNode('if') #Creating our if_expr string. I don't want to create individual nodes for each token
+                    if_expr = ASTNode('if')
+
                     bracket_Node = ASTNode('( )')
                     bracket_Node.add_child(expr)
                     bracket_Node.add_child(ASTNode(relOp))
                     bracket_Node.add_child(second_expr)
+
                     if_expr.add_child(bracket_Node)
 
                     if tokens[str(index)][cc.TOKEN_INDEX] == '{':

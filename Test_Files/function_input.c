@@ -1,9 +1,12 @@
+int hello = 5;
+char mon = '2';
+
 int main (int a, char b, float d) {
     int i = 4;
     char c = 'c';
     float j = 5.2;
 
-    i = 4;
+    hello = 6;
     return i;
 }
 
