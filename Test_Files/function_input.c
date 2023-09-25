@@ -3,7 +3,7 @@ char mon = '2';
 
 int main (int a, char b, float d) {
     int i = 4;
-    char c = 'c';
+    char c = 'h';
     float j = 5.2;
 
     hello = 6;

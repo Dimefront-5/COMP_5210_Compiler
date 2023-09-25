@@ -121,8 +121,27 @@ class ASTNode:
         else:
             return str(self.value)
 
+
+global index
+index = 0
+global symbolTable
+symbolTable = SymbolTable()
+global scope
+scope = "global"
+
+#main function for the parser
+def parser(tokens):
+    symbolTable.add_scope('global', 'void', None) #We want to make sure always have a global scope
+
+    parseTree = _parseProgram(tokens)
+
+    return parseTree, symbolTable
+
+#----- Inward facing modules
+
 #_customError function ----------------
 #Will take a list of tokens and the index of the token that caused the error and return a string with the error message pointing to the issue
+#I may eventually want to push this to it's own file to use across the compiler. For now, it will be located here
 #I had github copilot generate this for me.
 def _customError(message, tokens, index):
     #first we want to find the line number of the token that caused the error
@@ -148,39 +167,24 @@ def _customError(message, tokens, index):
     sys.exit()
 
 
-global index
-index = 0
-global symbolTable
-symbolTable = SymbolTable()
-global scope
-scope = "global"
-
-#main function for the parser
-def parser(tokens):
-    symbolTable.add_scope('global', 'void', None) #We want to make sure always have a global scope
-
-    parseTree = _parse_program(tokens)
-
-    return parseTree, symbolTable
-
-#----- Inward facing modules
+#The start of parsing our program ----------------
 
 #program -> declList
-def _parse_program(tokens):
+def _parseProgram(tokens):
     programNode = ASTNode("Program")
     global index
 
     while index < len(tokens): # we want to parse until we hit the end of the tokens
-        programNode.add_child(_parse_declList(tokens))
+        programNode.add_child(_parseDeclList(tokens))
         index +=1
 
     return programNode
 
 #declList -> decl declList | decl
-def _parse_declList(tokens, declListNode = ASTNode("declList")):
+def _parseDeclList(tokens, declListNode = ASTNode("declList")):
     global scope
 
-    declNode = _parse_decl(tokens)
+    declNode = _parseDecl(tokens)
 
     if declNode == None:
         _customError("Error: Invalid decl", tokens, index)
@@ -188,7 +192,7 @@ def _parse_declList(tokens, declListNode = ASTNode("declList")):
     scope = "global" #We want to reset the scope to global after we are done with a function
 
     if index < len(tokens) and tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
-        declListNode2 = _parse_declList(tokens, declListNode)
+        declListNode2 = _parseDeclList(tokens, declListNode)
         declListNode2.add_child(declNode)
         return declListNode2
     
@@ -200,7 +204,7 @@ def _parse_declList(tokens, declListNode = ASTNode("declList")):
 
 
 #decl -> type id (Args) {local_decls stmtList} | type id = endofDecl;
-def _parse_decl(tokens):
+def _parseDecl(tokens):
     declNode = ASTNode("decl")
 
     global index
@@ -229,7 +233,7 @@ def _parse_decl(tokens):
                         
             elif tokens[str(index)][cc.TOKEN_INDEX] == '=': #It is a global variable, so we can just parse the back of it using endofDecl_parser
 
-                global_decl = _parse_endofDecl(tokens, idNode, declType, declId)
+                global_decl = _parseEndofDecl(tokens, idNode, declType, declId)
                 if global_decl != None:
                     declNode.add_child(global_decl)
                     return declNode
@@ -247,7 +251,7 @@ def _functionDecl(tokens, idNode, typeNode, declNode):
     declNode.add_child(idNode)
     declNode.add_child(typeNode)
 
-    declNode, args = _setup_parse_args(tokens, declNode) #We want to parse through our args and add them to our symbol table for our function
+    declNode, args = _parseArgsSetup(tokens, declNode) #We want to parse through our args and add them to our symbol table for our function
     symbolTable.add_scope(scope, scope_type, args)
 
     errormsg = 'Error: Invalid decl, expected \')\''
@@ -259,7 +263,7 @@ def _functionDecl(tokens, idNode, typeNode, declNode):
 
         if tokens[str(index)][cc.TOKEN_INDEX] == '{':
 
-            declNode = _parsing_inside_function(tokens, declNode) #Used to parse through our local_decls and stmtList
+            declNode = _parseInFunction(tokens, declNode) #Used to parse through our local_decls and stmtList
 
             errormsg = 'Error: Invalid decl, expected \'}\''
 
@@ -271,32 +275,16 @@ def _functionDecl(tokens, idNode, typeNode, declNode):
 
     _customError(errormsg, tokens, index)
 
-def _parsing_inside_function(tokens, declNode):
-    global index
-    global scope
+#start of args parser ----------------
 
-    index += 1
-    local_declsNode = _parse_local_decls(tokens)
-
-    if local_declsNode != None:
-        declNode.add_child(local_declsNode)
-
-    stmtListNode = ASTNode("stmtList")
-    stmtList = _parse_stmtList(tokens, stmtListNode)
-
-    if stmtList != None:
-        declNode.add_child(stmtList)
-
-    return declNode
-
-
-def _setup_parse_args(tokens, declNode):
+#staging for parse args, just creating a overall args node to pass in, then checking to see if there are any args
+def _parseArgsSetup(tokens, declNode):
     global index
 
     index += 1
     argsNode = ASTNode("Args")
     
-    argsNode, args = (_parse_Args(tokens, argsNode))
+    argsNode, args = (_parseArgs(tokens, argsNode))
 
     if argsNode != None: #don't add args if there are no args
         declNode.add_child(argsNode)
@@ -304,14 +292,14 @@ def _setup_parse_args(tokens, declNode):
     return declNode, args
 
 #Args -> Arg, Args | Arg
-def _parse_Args(tokens, argsNode):
+def _parseArgs(tokens, argsNode):
     global index
 
-    argNode1, initialArgs = _parse_Arg(tokens)
+    argNode1, initialArgs = _parseOneArg(tokens)
 
-    if tokens[str(index)][cc.TOKEN_INDEX] == ',':#Looking to see if there are multiple args ',' is our indicator
+    if tokens[str(index)][cc.TOKEN_INDEX] == ',':#Looking to see if there are multiple args |  ',' is our indicator
         index += 1
-        argNode2, args = _parse_Args(tokens, argsNode)
+        argNode2, args = _parseArgs(tokens, argsNode)
 
         initialArgs.update(args) #We want to gather all of the args to add to the function scope, we pass them back so we can add all at once
         argNode2.add_child(argNode1)
@@ -323,7 +311,7 @@ def _parse_Args(tokens, argsNode):
         return argsNode, initialArgs
 
 #Arg -> type id | empty
-def _parse_Arg(tokens):
+def _parseOneArg(tokens):
     global index
     global scope
     errormsg = 'Error: Expected \')\''
@@ -345,15 +333,40 @@ def _parse_Arg(tokens):
     
     _customError(errormsg, tokens, index)
 
+
+#Start of parsing within function ----------------
+
+
+#Used to parse inside of a functions brackets, will go through local_decls and stmtList
+def _parseInFunction(tokens, declNode):
+    global index
+    global scope
+
+    index += 1
+    local_declsNode = _parseLocalDecls(tokens)
+
+    if local_declsNode != None: #local decls can be nothing, so we don't want to add it if it is nothing
+        declNode.add_child(local_declsNode)
+
+    stmtListNode = ASTNode("stmtList")
+    stmtList = _parseStmtList(tokens, stmtListNode)
+
+    if stmtList != None: #stmts can be nothing
+        declNode.add_child(stmtList)
+
+    return declNode
+
+#Start of local_decls parser ----------------
+
 #local_decls -> local_decl local_decls | local_decl
-def _parse_local_decls(tokens, local_declsNode = ASTNode("local_decls")):
-    local_declsNodechild = _parse_local_decl(tokens)
+def _parseLocalDecls(tokens, local_declsNode = ASTNode("local_decls")):
+    local_declsNodechild = _parseALocalDecl(tokens)
 
     if local_declsNodechild == None: # we allowed to have no local_decls
         return None
     
-    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
-        local_declsNode2 = _parse_local_decls(tokens, local_declsNode)
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type': #are there more local_decls?
+        local_declsNode2 = _parseLocalDecls(tokens, local_declsNode)
         local_declsNode2.add_child(local_declsNodechild)
     else:
         local_declsNode.add_child(local_declsNodechild)
@@ -361,7 +374,7 @@ def _parse_local_decls(tokens, local_declsNode = ASTNode("local_decls")):
     return local_declsNode
 
 #local_decl -> type id; | type id = endofDecl; | empty
-def _parse_local_decl(tokens):
+def _parseALocalDecl(tokens):
     global index
     global scope
     errormsg = 'Error: Invalid local_decl'
@@ -385,18 +398,20 @@ def _parse_local_decl(tokens):
                 index += 1
                 return id_decl
             
-            else:#If there is no semiclon, we check for a '=' and then parse the end of the decl, assuming it is valid
-                endOfDecl = _parse_endofDecl(tokens, id_decl, declType, declId) 
+            else: #If there is no semiclon, we check for a '=' and then parse the end of the decl, assuming it is valid
+                endOfDecl = _parseEndofDecl(tokens, id_decl, declType, declId) 
                 if endOfDecl != None:
                     return id_decl
                 
-        _customError(errormsg, tokens, index)#We only throw this if it is the start of a decl and then is invalid
+        _customError(errormsg, tokens, index) #We only throw this if it is the start of a decl and then is invalid
 
-    return None #We return none in the case that there are no local_decls, they could all be stmts
+    return None #We return none in the case that there are no local_decls
 
-#TODO: Refactor
+
+#endofDecl parser ----------------
+
 #endofDecl -> expr | string | character
-def _parse_endofDecl(tokens, local_decl, declType, declId):
+def _parseEndofDecl(tokens, local_decl, declType, declId):
     global index
     global scope
     
@@ -404,60 +419,90 @@ def _parse_endofDecl(tokens, local_decl, declType, declId):
         index += 1
         exprNode = _parseExpr(tokens)
 
-        if exprNode != None:
-            local_decl.add_child(exprNode)
-
-            if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-                symbolTable.add_variable(declId, declType, scope)
-                #Pass in the name, type, and scope
-                symbolTable.add_value(declId, exprNode.ast_to_expr(), scope)
-                #Passing in the name, value, and scope
-                index += 1
-                return local_decl
+        if exprNode != None: #If it isn't none, it is a number/expression that results in a number
+            local_decl = _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode)
+            return local_decl
             
         elif tokens[str(index)][cc.TOKEN_INDEX] == '"' or tokens[str(index)][cc.TOKEN_INDEX] == "'":
-            index += 1
-            second_half_of_decl = tokens[str(index-1)][cc.TOKEN_INDEX]
-
-            if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'string' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'characters':
-
-                second_half_of_decl += tokens[str(index)][cc.TOKEN_INDEX] + tokens[str(index-1)][cc.TOKEN_INDEX]
-                index += 2 #We want to skip the closing quote
-
-                local_decl.add_child(ASTNode(second_half_of_decl))
-                if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-                    symbolTable.add_variable(tokens[str(index-5)][cc.TOKEN_INDEX], tokens[str(index-6)][cc.TOKEN_INDEX], scope)
-                    symbolTable.add_value(tokens[str(index-5)][cc.TOKEN_INDEX], tokens[str(index-2)][cc.TOKEN_INDEX], scope)
-                    #Passing in name, value, and scope for strings/characters we have to push it back further to grab the right tokens
-                    index += 1
-                    return local_decl
+            local_decl = _parseEndofDeclString(tokens, local_decl, declType, declId)
+            return local_decl
                 
     _customError("Error: Invalid local_decl", tokens, index)
 
+
+
+#Parses our number endofDecl
+def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode):
+    global scope
+    global index
+    local_decl.add_child(exprNode)
+
+    if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+        symbolTable.add_variable(declId, declType, scope)
+        #Pass in the name, type, and scope
+        symbolTable.add_value(declId, exprNode.ast_to_expr(), scope)
+        #Passing in the name, value, and scope
+        index += 1
+        return local_decl
+    else:
+        _customError("Error: Invalid local_decl, missing a \';\'", tokens, index)
+
+
+#Parses our string and character endofDecl
+def _parseEndofDeclString(tokens, local_decl, declType, declId):
+    global index
+    global scope
+    index += 1
+    second_half_of_decl = tokens[str(index-1)][cc.TOKEN_INDEX]
+
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'string' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'characters':
+        value = tokens[str(index)][cc.TOKEN_INDEX]
+        second_half_of_decl += tokens[str(index)][cc.TOKEN_INDEX] + tokens[str(index-1)][cc.TOKEN_INDEX]
+        index += 2 #We want to skip the closing quote
+
+        local_decl.add_child(ASTNode(second_half_of_decl))
+        if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+            symbolTable.add_variable(declId, declType, scope)
+            symbolTable.add_value(declId, value, scope)
+            #Passing in name, value, and scope for strings/characters we have to push it back further to grab the right tokens
+            index += 1
+            return local_decl
+        else:
+            _customError("Error: Invalid local_decl, missing a \';\'", tokens, index)
+    else:
+        _customError('Error: Invalid assignment, expected ' + declType + ' but received a non-' + declType + ' value', tokens, index)
+
+
+#stmtList parsing ----------------
+
 #stmtList -> stmt | stmt stmtList
-def _parse_stmtList(tokens, stmtListNode):
-    stmtNode = _parse_stmt(tokens)
+def _parseStmtList(tokens, stmtListNode):
+    stmtNode = _parseStmt(tokens)
     if stmtNode == None:
         return None
     if tokens[str(index)][cc.TOKEN_INDEX] != '}':
         stmtListNode.add_child(stmtNode)
-        stmtListNode2 = _parse_stmtList(tokens, stmtListNode)
+        stmtListNode2 = _parseStmtList(tokens, stmtListNode)
         return stmtListNode2
     else:
         stmtListNode.add_child(stmtNode)
 
     return stmtListNode
 
+
+
+#start of stmt parser ----------------
+
 #stmt -> returnstmt | ifstmt | assignstmt | empty
-def _parse_stmt(tokens):
+def _parseStmt(tokens):
     global index
     if tokens[str(index)][cc.TOKEN_INDEX] == 'return':
-        returnNode = _parse_returnstmt(tokens)
+        returnNode = _parseReturnStmt(tokens)
         if returnNode != None:
             return returnNode
         
     elif tokens[str(index)][cc.TOKEN_INDEX] == 'if':
-        returnNode = _parse_ifstmt(tokens)
+        returnNode = _parseIfStmt(tokens)
         if returnNode != None:
             return returnNode
         
@@ -465,13 +510,13 @@ def _parse_stmt(tokens):
         iftype = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
         globalisType = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], "global") #Checking to see if the variable is declared on a global or local scale at least.
 
-        if iftype != None:
-            returnNode = _parse_assignstmt(tokens, iftype[0], scope)
+        if iftype != None:#if it is not a global, pass in the function scope
+            returnNode = _parseAssignStmt(tokens, iftype[0])
             if returnNode != None:
                 return returnNode
             
         elif globalisType != None:
-            returnNode = _parse_assignstmt(tokens, globalisType[0], "global")
+            returnNode = _parseAssignStmt(tokens, globalisType[0])
             if returnNode != None:
                 return returnNode
         else:
@@ -479,42 +524,10 @@ def _parse_stmt(tokens):
         
     return None
 
+#return stmt parser ----------------
 
-def _parse_assignstmt(tokens, idType, variableScope):
-    global index
-    assignstmt = tokens[str(index)][cc.TOKEN_INDEX]
-    index += 1
-    errormsg = 'Error: Invalid assignment'
-
-    if tokens[str(index)][cc.TOKEN_INDEX] == '=':
-        index += 1
-        exprNode = _parseExpr(tokens)
-        exprString = exprNode.ast_to_expr()
-
-        if exprNode != None:
-            errormsg = 'Error: Invalid assignment, expected ' + idType + ' but received a non-' + idType + ' value'
-
-            if idType == 'int' or idType == 'float':
-                symbolTable.add_value(tokens[str(index-3)][cc.TOKEN_INDEX], exprString, variableScope)
-                assignstmt += ' = ' + exprString
-                if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-                    index += 1
-                    return ASTNode(assignstmt)
-        
-        elif tokens[str(index)][cc.TOKEN_INDEX] == '\'' or tokens[str(index)][cc.TOKEN_INDEX] == '\"':
-            if idType == 'char':
-                index += 1
-                assignstmt += ' = ' + tokens[str(index-1)][cc.TOKEN_INDEX] + tokens[str(index)][cc.TOKEN_INDEX] + tokens[str(index+1)][cc.TOKEN_INDEX]#We are adding the quotes and the character/string
-                index += 1
-                if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-                    index += 1
-                    return ASTNode(assignstmt)
-            errormsg = 'Error: Invalid assignment, expected ' + idType + ' but received a non-' + idType + ' value'
-            
-    _customError(errormsg, tokens, index)
-
-
-def _parse_returnstmt(tokens):
+#returnstmt -> return; | return expr; | return character | return string | return id;
+def _parseReturnStmt(tokens):
     global index
     returnNode = ASTNode("return")
     index += 1
@@ -522,8 +535,10 @@ def _parse_returnstmt(tokens):
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier': #Return can be a id or number.
         
         numNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+
         if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':#Is our return a variable?
             idType = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
+
         returnNode.add_child(numNode)
         index += 1
 
@@ -538,26 +553,31 @@ def _parse_returnstmt(tokens):
                 return returnNode
             
         _customError("Error: Invalid return type", tokens, index-1)
+
     elif tokens[str(index)][cc.TOKEN_INDEX] == ';': #If we have a return with no value
         index += 1
         return returnNode
     
     _customError("Error: Invalid return statement", tokens, index)
 
+
+#If stmt parser ----------------
+
+#Starts parsing our if stmt, will check for the open parens and then an else stmt
 #ifstmt -> if (if_expr) {stmtList} | if (if_expr) {stmtList} else {stmtList}
-def _parse_ifstmt(tokens):
+def _parseIfStmt(tokens):
     global index
     
     index += 1
 
     if tokens[str(index)][cc.TOKEN_INDEX] == '(':
         index += 1
-        if_exprNode = _parse_if_expr(tokens)
+        if_exprNode = _parse_if_expr(tokens) #Passes it to another part that starts parsing the if_expr
         if if_exprNode == None:
             _customError("Error: Invalid if statement", tokens, index)
 
         elif tokens[str(index)][cc.TOKEN_INDEX] == 'else':#Checking to see if this is an if else stmt
-            else_exprNode = _parse_else(tokens)
+            else_exprNode = _paseElseStmt(tokens)
             if_exprNode.add_child(else_exprNode)
             return if_exprNode
             
@@ -565,8 +585,81 @@ def _parse_ifstmt(tokens):
     _customError("Error: Invalid if statement", tokens, index)
     return None
 
+#if_expr -> expr relop expr
+#ifstmt -> if (if_expr) {stmtList}
+def _parse_if_expr(tokens):
+    global index
+    errormsg = 'Error: Invalid if statement'
+    expr = _parseExpr(tokens)
+
+    if expr != None:
+        if re.match(grammar['relop'][0], tokens[str(index)][cc.TOKEN_INDEX]):
+            if_expr = ASTNode('if')
+            bracketNode = _parseRelop(tokens, expr)
+            if_expr.add_child(bracketNode)
+            if_expr = _parseStmtInBrackets(tokens, if_expr)
+            return if_expr
+                            
+        else: #Only if it is just a number
+            return expr
+    
+    _customError(errormsg, tokens, index)
+
+#Used to parse the if expr within the parens of an if stmt
+#ifstmt -> if (if_expr)
+def _parseRelop(tokens, expr):
+    global index
+    global scope
+
+    relOp = tokens[str(index)][cc.TOKEN_INDEX]
+    index += 1
+    second_expr = _parseExpr(tokens)
+
+    errormsg = 'Error: Invalid if statement, expected a variable or number after the relop'
+
+    if second_expr != None:
+        errormsg = 'Error: Invalid if statement, expected a \')\''
+
+        if tokens[str(index)][cc.TOKEN_INDEX] == ')':
+            index += 1
+
+            bracket_Node = ASTNode('( )') #We want to add our bracket node to our if_expr, then within it show the expression
+            bracket_Node.add_child(expr)
+            bracket_Node.add_child(ASTNode(relOp))
+            bracket_Node.add_child(second_expr)
+            return bracket_Node
+
+    _customError(errormsg, tokens, index)
+
+#Used to parse the stmts within the brackets of an if stmt
+#ifstmt -> if (if_expr) {stmtList}
+def _parseStmtInBrackets(tokens, if_expr):
+    global index
+    global scope
+
+    errormsg = 'Error: Invalid if statement, expected a \'{\''
+    
+    if tokens[str(index)][cc.TOKEN_INDEX] == '{':
+        index += 1
+        stmtList = _parseStmtList(tokens, ASTNode("stmtList")) #Only allowing stmts for now
+
+        if tokens[str(index)][cc.TOKEN_INDEX] == '}':
+            index += 1
+            bracketNode = ASTNode('{ }')
+
+            if stmtList != None:# We can have no stmts within the else.
+                bracketNode.add_child(stmtList)
+
+            if_expr.add_child(bracketNode)
+            return if_expr
+            
+    else:#Just to move the pointer back to the previous token so the error message looks neater
+        index -= 1
+
+    _customError(errormsg, tokens, index)
+
 # if (if_expr) {stmtList} else {stmtList}
-def _parse_else(tokens):
+def _paseElseStmt(tokens):
 
     global index
     errorstmt = 'Error: Missing a \'{\' in else stmt'#Generating better help messages for the user
@@ -574,7 +667,7 @@ def _parse_else(tokens):
 
     if tokens[str(index)][cc.TOKEN_INDEX] == '{':
         index += 1
-        stmtList = _parse_stmtList(tokens, ASTNode("stmtList"))
+        stmtList = _parseStmtList(tokens, ASTNode("stmtList"))
 
         errorstmt = 'Error: Missing a \'}\' in else stmt' #Generating better help messages for the user
 
@@ -590,47 +683,22 @@ def _parse_else(tokens):
         
     _customError(errorstmt, tokens, index) #we only hit this if there is an error
 
-#if_expr -> expr relop expr
-#ifstmt -> if (if_expr) {stmtList}
-def _parse_if_expr(tokens):
+
+#assignment stmt parser ----------------
+
+#assignstmt -> id = endofDecl;
+def _parseAssignStmt(tokens, idType):
     global index
-    
-    expr = _parseExpr(tokens)
-    exprString = expr.ast_to_expr() 
+    assignID = tokens[str(index)][cc.TOKEN_INDEX]
+    index += 1
+    errormsg = 'Error: Invalid assignment'
 
-    if exprString != None:
-        if re.match(grammar['relop'][0], tokens[str(index)][cc.TOKEN_INDEX]):
-            relOp = tokens[str(index)][cc.TOKEN_INDEX]
-            index += 1
-            second_expr = _parseExpr(tokens)
-            second_exprString = second_expr.ast_to_expr()
+    if tokens[str(index)][cc.TOKEN_INDEX] == '=':
+        exprNode = _parseEndofDecl(tokens, ASTNode(assignID), idType, assignID)
+        return exprNode
+            
+    _customError(errormsg, tokens, index)
 
-            if second_exprString != None:
-                if tokens[str(index)][cc.TOKEN_INDEX] == ')':
-                    index += 1
-                    if_expr = ASTNode('if')
-
-                    bracket_Node = ASTNode('( )')
-                    bracket_Node.add_child(expr)
-                    bracket_Node.add_child(ASTNode(relOp))
-                    bracket_Node.add_child(second_expr)
-
-                    if_expr.add_child(bracket_Node)
-
-                    if tokens[str(index)][cc.TOKEN_INDEX] == '{':
-                        index += 1
-                        stmtList = _parse_stmtList(tokens, ASTNode("stmtList")) #Only allowing stmts for now
-
-                        if stmtList != None:
-
-                            if tokens[str(index)][cc.TOKEN_INDEX] == '}':
-                                index += 1
-                                bracketNode = ASTNode('{ }')
-                                bracketNode.add_child(stmtList)
-                                if_expr.add_child(bracketNode)
-                                return if_expr
-        return expr
-    
 
 #Expr parser ----------------
 
@@ -638,7 +706,7 @@ def _parseExpr(tokens):
     global index
     termNode = _parseTerm(tokens)
 
-    if termNode == None:
+    if termNode == None:#We aren't throwing errors for these because at the parse_end0fDecl we use it to determine if it a number or not. I will pass in a ' if it isn't.
         return None
     
     if len(tokens) > index and tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'addOP':
