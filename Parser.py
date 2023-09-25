@@ -23,7 +23,7 @@ grammar = {
     'Arg': ['Type id', ''],
 
     'Local_Decls': ['Local_Decl', 'Local_Decl Local_Decls'],
-    'Local_Decl': ['Type id;', 'Type id = EndOfDecl;',''], # we aren't going to check and see if the EndOfDecl is valid, we will just assume it is. TODO: check if it is valid
+    'Local_Decl': ['TypeModifier Type id;', 'TypeModifier Type id = EndOfDecl;',''],
 
     'StmtList': ['Stmt', 'Stmt StmtList'],
     'Stmt': ['ReturnStmt', 'AssignStmt', 'WhileStmt', 'IfStmt', ''],
@@ -33,7 +33,7 @@ grammar = {
     'WhileStmt': ['while (Conditional_Expr) \{StmtList\}'],
     'IfStmt': ['if (Conditional_Expr) \{StmtList\}', 'if (Conditional_Expr) \{StmtList\} else \{StmtList\}'],
 
-    'Conditional_Expr': ['expr Relop expr'],
+    'Conditional_Expr': ['Expr Relop Expr'],
     'Relop': [r'^==$|^!=$|^>$|^>=$|^<$|^<=$'],
 
     'EndOfDecl': ['Expr', 'string', 'character'],
@@ -42,7 +42,9 @@ grammar = {
     'Term': ['Factor * Term', 'Factor / Term', 'Factor'],
     'Factor': ['num', '(Expr)', 'id'],
 
-    'Type': ['int', 'void', 'float', 'char'],
+    'Type': ['NumType', 'void', 'char'],
+    'NumType': [r'double|int|float|short|long'],
+    'TypeModifier': [r'signed|unsigned|long|short', ''],
 
     'string': [r'^"[^"]*"$'],
     'character': ['\'[a-zA-Z]\''],
@@ -385,20 +387,29 @@ def _parseLocalDecls(tokens, local_declsNode = ASTNode("local_decls")):
     return local_declsNode
 
 #local_decl -> type id; | type id = endofDecl; | empty
-def _parseALocalDecl(tokens):
+def _parseALocalDecl(tokens, typeModifier = None):
     global index
     global scope
     errormsg = 'Error: Invalid local_decl'
 
-    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type':
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or re.match(grammar['NumType'][0], tokens[str(index)][cc.TOKEN_INDEX]):
         declType = tokens[str(index)][cc.TOKEN_INDEX]
         local_decl = ASTNode(declType)
         index += 1
 
         errormsg += ', expected a identifier'
+
+        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or re.match(grammar['NumType'][0], tokens[str(index)][cc.TOKEN_INDEX]):
+            typeModifier = declType
+            declType = tokens[str(index)][cc.TOKEN_INDEX]
+            local_decl = ASTNode(declType)
+            index +=1
+
         if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
             declId = tokens[str(index)][cc.TOKEN_INDEX]
             id_decl = ASTNode(declId)
+            if typeModifier != None:#We are seeing if the type modifier exists, if not we will pass in a empty node
+                id_decl.add_child(ASTNode(typeModifier))
             id_decl.add_child(local_decl)
             index += 1
 
@@ -415,6 +426,14 @@ def _parseALocalDecl(tokens):
                     return id_decl
                 
         _customError(errormsg, tokens, index) #We only throw this if it is the start of a decl and then is invalid
+
+    elif tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type modifier':
+        declModifier = tokens[str(index)][cc.TOKEN_INDEX]
+        index += 1
+        local_decl = _parseALocalDecl(tokens, declModifier)
+        if local_decl == None:
+            _customError("Error: Invalid local_decl", tokens, index)
+        return local_decl
 
     return None #We return none in the case that there are no local_decls
 
@@ -448,7 +467,7 @@ def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode):
     global index
     local_decl.add_child(exprNode)
 
-    if declType == 'int' or declType == 'float':
+    if re.match(grammar['NumType'][0], declType):
 
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
             symbolTable.add_variable(declId, declType, scope)
@@ -564,11 +583,11 @@ def _parseReturnStmt(tokens):
         index += 1
 
         scope_type = symbolTable.get_scope_type(scope)
-        if (scope_type == 'int' or scope_type == 'float') and tokens[str(index-1)][cc.TOKEN_TYPE_INDEX] == 'number': #A number can fit in with both a float and int
+        if re.match(grammar['NumType'][0], scope_type) and tokens[str(index-1)][cc.TOKEN_TYPE_INDEX] == 'number': #A number can fit in with both a float and int
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                 index += 1
                 return returnNode #We don't need ';' in our AST
-        elif idType[0] == scope_type: #We are seeing if the type of our variable matches the return type of the function
+        elif idType[0] == scope_type or (re.match(grammar['NumType'][0], idType[0]) and re.match(grammar['NumType'][0], scope_type)): #We are seeing if the type of our variable matches the return type of the function
             if tokens[str(index)][cc.TOKEN_INDEX] == ';':
                 index += 1
                 return returnNode
@@ -765,10 +784,8 @@ def _parseExpr(tokens):
             return None
         
         addOpNode.add_child(exprNode)
-        print(addOpNode)
         return addOpNode
     
-    print(termNode)
     return termNode
 
 def _parseTerm(tokens):

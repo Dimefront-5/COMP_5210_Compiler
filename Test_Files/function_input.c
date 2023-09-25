@@ -2,12 +2,15 @@ int hello = 5;
 char mon = '2';
 
 int main (int a, char b, float d) {
-    int i = 4;
+    unsigned int i = 4;
     char c = 'c';
     float j = 32.4;
+    double k;
+
+    k = 5.6;
 
     hello = 6 + 5 -7 * 8 / 9 * (8 + 2);
-    return i;
+    return k;
 }
 
 int choice () {
