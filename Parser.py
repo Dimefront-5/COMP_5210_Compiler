@@ -12,27 +12,38 @@ import re
 import sys
 
 #grammar for our parser
+#A capital first letter symbolizes a non-terminal, a lowercase first letter symbolizes a literal token
+#Some of the backslashes are used freely, none of this grammar uses a literal backslash
 grammar = {
-    'Program': ['declList'],
-    'declList': ['decl', 'decl declList'],
-    'decl': ['type id (Args) \{local_decls stmtList\}'],
-    'type': ['int', 'void', 'float', 'char'],
-    'Args': ['Arg', 'Arg, Args'],
-    'Arg': ['type id', ''],
-    'stmtList': ['stmt', 'stmt stmtList'],
-    'stmt': ['returnstmt', 'ifstmt', 'assignstmt', 'whilestmt', ''],
-    'assignstmt': ['id = endofDecl;'],
-    'ifstmt': ['if (conditional_expr) \{stmtList\}', 'if (conditional_expr) \{stmtList\} else \{stmtList\}'],
-    'conditional_expr': ['expr relop expr'],
-    'relop': [r'^==$|^!=$|^>$|^>=$|^<$|^<=$'],
-    'returnstmt': ['return num;', 'return id;', 'return;', 'return expr;', 'return character'],
-    'whilestmt': ['while (conditional_expr) \{stmtList\}'],
-    'local_decls': ['local_decl', 'local_decl local_decls'],
-    'local_decl': ['type id;', 'type id = endofDecl;',''], # we aren't going to check and see if the endofDecl is valid, we will just assume it is. TODO: check if it is valid
-    'endofDecl': ['expr', 'string', 'character'],
+    'Program': ['DeclList'],
+    'DeclList': ['Decl', 'Decl DeclList'],
+    'Decl': ['Type id (Args) \{Local_Decls stmtList\}, Type id = endofDecl;'],
+
+    'Args': ['Arg', 'Arg\, Args'],
+    'Arg': ['Type id', ''],
+
+    'Local_Decls': ['Local_Decl', 'Local_Decl Local_Decls'],
+    'Local_Decl': ['Type id;', 'Type id = EndOfDecl;',''], # we aren't going to check and see if the EndOfDecl is valid, we will just assume it is. TODO: check if it is valid
+
+    'StmtList': ['Stmt', 'Stmt StmtList'],
+    'Stmt': ['ReturnStmt', 'AssignStmt', 'WhileStmt', 'IfStmt', ''],
+
+    'ReturnStmt': ['return num;', 'return id;', 'return;', 'return expr;', 'return character', 'return string'],
+    'AssignStmt': ['id = EndOfDecl;'],
+    'WhileStmt': ['while (Conditional_Expr) \{StmtList\}'],
+    'IfStmt': ['if (Conditional_Expr) \{StmtList\}', 'if (Conditional_Expr) \{StmtList\} else \{StmtList\}'],
+
+    'Conditional_Expr': ['expr Relop expr'],
+    'Relop': [r'^==$|^!=$|^>$|^>=$|^<$|^<=$'],
+
+    'EndOfDecl': ['Expr', 'string', 'character'],
+
     'Expr': ['Term + Expr', 'Term - Expr', 'Term'],
     'Term': ['Factor * Term', 'Factor / Term', 'Factor'],
     'Factor': ['num', '(Expr)', 'id'],
+
+    'Type': ['int', 'void', 'float', 'char'],
+
     'string': [r'^"[^"]*"$'],
     'character': ['\'[a-zA-Z]\''],
     'num': [r'^[\d]+$ | ^[\d]+\.[\d]+$'],
@@ -61,11 +72,17 @@ class SymbolTable:
     def add_variable(self, name, type, scope):
         self.symbolTable[scope][name] = [type]
 
-    def add_scope(self, name, fun_type, params):
-        if name not in self.symbolTable:
-            self.symbolTable[name] = {}  # Create a new scope
-        self.symbolTable[name]['return_type'] = fun_type
-        self.symbolTable[name]['args'] = params
+    def add_scope(self, scope, fun_type, params):
+        if scope not in self.symbolTable:
+            self.symbolTable[scope] = {}  # Create a new scope
+        self.symbolTable[scope]['return_type'] = fun_type
+        self.symbolTable[scope]['args'] = params
+
+    def get_args(self, scope):
+        if scope in self.symbolTable:
+            return self.symbolTable[scope]['args']
+        else:
+            return None
 
     def add_value(self, name, value, scope):
         if name in self.symbolTable[scope]:
@@ -243,6 +260,7 @@ def _functionDecl(tokens, idNode, typeNode, declNode):
 
     declNode.add_child(idNode)
     declNode.add_child(typeNode)
+
 
     declNode, args = _parseArgsSetup(tokens, declNode) #We want to parse through our args and add them to our symbol table for our function
     symbolTable.add_scope(scope, scope_type, args)
@@ -430,15 +448,20 @@ def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode):
     global index
     local_decl.add_child(exprNode)
 
-    if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-        symbolTable.add_variable(declId, declType, scope)
-        #Pass in the name, type, and scope
-        symbolTable.add_value(declId, exprNode.ast_to_expr(), scope)
-        #Passing in the name, value, and scope
-        index += 1
-        return local_decl
+    if (declType == 'int' or declType == 'float') and tokens[str(index-1)][cc.TOKEN_TYPE_INDEX] == 'number':
+
+        if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+            symbolTable.add_variable(declId, declType, scope)
+            #Pass in the name, type, and scope
+            symbolTable.add_value(declId, exprNode.ast_to_expr(), scope)
+            #Passing in the name, value, and scope
+            index += 1
+            return local_decl
+        else:
+            _customError("Error: Invalid local_decl, missing a \';\'", tokens, index)
     else:
-        _customError("Error: Invalid local_decl, missing a \';\'", tokens, index)
+        index -= 1 #Go back to number start
+        _customError('Error: Invalid assignment, expected ' + declType + ' but received a non-' + declType + ' value', tokens, index)
 
 
 #Parses our string and character endofDecl
@@ -448,7 +471,7 @@ def _parseEndofDeclString(tokens, local_decl, declType, declId):
     index += 1
     second_half_of_decl = tokens[str(index-1)][cc.TOKEN_INDEX]
 
-    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'string' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'characters':
+    if declType == 'char':
         value = tokens[str(index)][cc.TOKEN_INDEX]
         second_half_of_decl += tokens[str(index)][cc.TOKEN_INDEX] + tokens[str(index-1)][cc.TOKEN_INDEX]
         index += 2 #We want to skip the closing quote
@@ -500,8 +523,12 @@ def _parseStmt(tokens):
     elif tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
         iftype = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
         globalisType = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], "global") #Checking to see if the variable is declared on a global or local scale at least.
+        functionArguments = symbolTable.get_args(scope)
 
-        if iftype != None:#if it is not a global, pass in the function scope
+        if tokens[str(index)][cc.TOKEN_INDEX] in functionArguments: #Checking to see if the variable is a function argument
+            returnNode = _parseAssignStmt(tokens, functionArguments[tokens[str(index)][cc.TOKEN_INDEX]])
+            return returnNode
+        elif iftype != None:#if it is not a global, pass in the function scope
             returnNode = _parseAssignStmt(tokens, iftype[0])
             return returnNode
             
@@ -610,7 +637,7 @@ def _parse_if_expr(tokens):
     expr = _parseExpr(tokens)
 
     if expr != None:
-        if re.match(grammar['relop'][0], tokens[str(index)][cc.TOKEN_INDEX]):
+        if re.match(grammar['Relop'][0], tokens[str(index)][cc.TOKEN_INDEX]):
             if_expr = ASTNode('if')
             bracketNode = _parseConditionalExpr(tokens, expr)
             if_expr.add_child(bracketNode)
@@ -766,10 +793,22 @@ def _parseTerm(tokens):
 
 def _parseFactor(tokens):
     global index
+    global scope
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
-        factor = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
-        index += 1
-        return factor
+        isIdInFunction = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
+        isIdInGlobal = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], "global")
+        isIdInFunctionValue = symbolTable.get_args(scope)
+
+        if isIdInFunction != None or isIdInGlobal != None:
+            factor = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+            index += 1
+            return factor
+        elif tokens[str(index)][cc.TOKEN_INDEX] in isIdInFunctionValue:
+            factor = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+            index += 1
+            return factor
+        else:
+            _customError("Error: Undeclared identifier", tokens, index)
     
     elif tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number': 
         factor = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])

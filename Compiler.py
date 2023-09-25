@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 9/12/2023
+-@date: 9/24/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it

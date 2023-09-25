@@ -3,15 +3,15 @@ char mon = '2';
 
 int main (int a, char b, float d) {
     int i = 4;
-    char c = 'h';
-    float j = 5.2;
+    char c = 'c';
+    float j = 32.4;
 
     hello = 6;
     return i;
 }
 
 int choice () {
-    if (5 *2 + (7*8) == 1) {
+    if (5 *2 + (7*8) == 0) {
         return 0;
         return 1;
     }
@@ -22,8 +22,7 @@ int choice () {
 }
 
 
-char choice2 () {
-    int i = 0;
+char choice2 (int i) {
     while (i < 10) {
         i = i + 1;
     }
