@@ -11,13 +11,6 @@ from anytree import RenderTree #Our fancy printing with AST
 import re
 import sys
 
-'''
-Need to change grammar to:
-Expr -> Term + Expr, Term - Expr, Term
-Term -> Factor * Term, Factor / Term, Factor
-Factor -> num, (Expr), id
-'''
-#TODO: Rewrite grammar as I add more things
 #grammar for our parser
 grammar = {
     'Program': ['declList'],
@@ -27,16 +20,16 @@ grammar = {
     'Args': ['Arg', 'Arg, Args'],
     'Arg': ['type id', ''],
     'stmtList': ['stmt', 'stmt stmtList'],
-    'stmt': ['returnstmt', 'ifstmt', '', 'assignstmt'],
+    'stmt': ['returnstmt', 'ifstmt', 'assignstmt', 'whilestmt', ''],
     'assignstmt': ['id = endofDecl;'],
-    'ifstmt': ['if (if_expr) \{stmtList\}', 'if (if_expr) \{stmtList\} else \{stmtList\}'],
-    'if_expr': ['expr relop expr'], #I know you can have an if with just a number, but for now I am not allowing it
+    'ifstmt': ['if (conditional_expr) \{stmtList\}', 'if (conditional_expr) \{stmtList\} else \{stmtList\}'],
+    'conditional_expr': ['expr relop expr'],
     'relop': [r'^==$|^!=$|^>$|^>=$|^<$|^<=$'],
     'returnstmt': ['return num;', 'return id;', 'return;', 'return expr;', 'return character'],
+    'whilestmt': ['while (conditional_expr) \{stmtList\}'],
     'local_decls': ['local_decl', 'local_decl local_decls'],
     'local_decl': ['type id;', 'type id = endofDecl;',''], # we aren't going to check and see if the endofDecl is valid, we will just assume it is. TODO: check if it is valid
     'endofDecl': ['expr', 'string', 'character'],
-    #------Previous grammar is below. New Grammar is above
     'Expr': ['Term + Expr', 'Term - Expr', 'Term'],
     'Term': ['Factor * Term', 'Factor / Term', 'Factor'],
     'Factor': ['num', '(Expr)', 'id'],
@@ -493,18 +486,16 @@ def _parseStmtList(tokens, stmtListNode):
 
 #start of stmt parser ----------------
 
-#stmt -> returnstmt | ifstmt | assignstmt | empty
+#stmt -> returnstmt | ifstmt | assignstmt | whilestmt | empty
 def _parseStmt(tokens):
     global index
     if tokens[str(index)][cc.TOKEN_INDEX] == 'return':
         returnNode = _parseReturnStmt(tokens)
-        if returnNode != None:
-            return returnNode
+        return returnNode
         
     elif tokens[str(index)][cc.TOKEN_INDEX] == 'if':
         returnNode = _parseIfStmt(tokens)
-        if returnNode != None:
-            return returnNode
+        return returnNode
         
     elif tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
         iftype = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
@@ -512,15 +503,18 @@ def _parseStmt(tokens):
 
         if iftype != None:#if it is not a global, pass in the function scope
             returnNode = _parseAssignStmt(tokens, iftype[0])
-            if returnNode != None:
-                return returnNode
+            return returnNode
             
         elif globalisType != None:
             returnNode = _parseAssignStmt(tokens, globalisType[0])
-            if returnNode != None:
-                return returnNode
+            return returnNode
         else:
             _customError("Error: Undeclared identifier", tokens, index)
+    
+    elif tokens[str(index)][cc.TOKEN_INDEX] == 'while':
+        returnNode = _parseWhileStmt(tokens)
+        if returnNode != None:
+            return returnNode
         
     return None
 
@@ -561,6 +555,29 @@ def _parseReturnStmt(tokens):
     _customError("Error: Invalid return statement", tokens, index)
 
 
+#while stmt parser ----------------
+
+# whilestmt -> while (conditional_expr) {stmtList}
+def _parseWhileStmt(tokens):
+    global index
+    global scope
+    whileNode = ASTNode("while")
+    index += 1
+    errormsg = 'Error: Invalid while statement'
+
+    if tokens[str(index)][cc.TOKEN_INDEX] == '(':
+        index += 1
+        exprNode = _parseExpr(tokens)
+        errormsg = 'Error: Invalid while statement, There must be something within the parens'
+        if exprNode != None:
+            conditionalExprNode = _parseConditionalExpr(tokens, exprNode)
+            whileNode.add_child(conditionalExprNode)
+            whileNode = _parseStmtInBrackets(tokens, whileNode)
+            return whileNode
+
+    _customError(errormsg, tokens, index)
+
+
 #If stmt parser ----------------
 
 #Starts parsing our if stmt, will check for the open parens and then an else stmt
@@ -595,7 +612,7 @@ def _parse_if_expr(tokens):
     if expr != None:
         if re.match(grammar['relop'][0], tokens[str(index)][cc.TOKEN_INDEX]):
             if_expr = ASTNode('if')
-            bracketNode = _parseRelop(tokens, expr)
+            bracketNode = _parseConditionalExpr(tokens, expr)
             if_expr.add_child(bracketNode)
             if_expr = _parseStmtInBrackets(tokens, if_expr)
             return if_expr
@@ -606,8 +623,9 @@ def _parse_if_expr(tokens):
     _customError(errormsg, tokens, index)
 
 #Used to parse the if expr within the parens of an if stmt
-#ifstmt -> if (if_expr)
-def _parseRelop(tokens, expr):
+#ifstmt -> if (conditional_expr) {stmtList}
+#whilestmt -> while (conditional_expr) {stmtList}
+def _parseConditionalExpr(tokens, expr):
     global index
     global scope
 
@@ -633,11 +651,12 @@ def _parseRelop(tokens, expr):
 
 #Used to parse the stmts within the brackets of an if stmt
 #ifstmt -> if (if_expr) {stmtList}
-def _parseStmtInBrackets(tokens, if_expr):
+#whilestmt -> while (conditional_expr) {stmtList}
+def _parseStmtInBrackets(tokens, stmtNode):
     global index
     global scope
 
-    errormsg = 'Error: Invalid if statement, expected a \'{\''
+    errormsg = 'Error: Invalid statement, expected a \'{\''
     
     if tokens[str(index)][cc.TOKEN_INDEX] == '{':
         index += 1
@@ -650,8 +669,8 @@ def _parseStmtInBrackets(tokens, if_expr):
             if stmtList != None:# We can have no stmts within the else.
                 bracketNode.add_child(stmtList)
 
-            if_expr.add_child(bracketNode)
-            return if_expr
+            stmtNode.add_child(bracketNode)
+            return stmtNode
             
     else:#Just to move the pointer back to the previous token so the error message looks neater
         index -= 1
