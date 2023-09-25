@@ -5,7 +5,7 @@ int main (int a, char b, float d) {
     long i = 4;
     char c = 'c';
     float j = 32.4;
-    double k;
+    long int k;
 
     k = 5.6;
 

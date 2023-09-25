@@ -378,7 +378,7 @@ def _parseLocalDecls(tokens, local_declsNode = ASTNode("local_decls")):
     if local_declsNodechild == None: # we allowed to have no local_decls
         return None
     
-    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type': #are there more local_decls?
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == "type modifier": #are there more local_decls?
         local_declsNode2 = _parseLocalDecls(tokens, local_declsNode)
         local_declsNode2.add_child(local_declsNodechild)
     else:
