@@ -42,8 +42,8 @@ grammar = {
     'Term': ['Factor * Term', 'Factor / Term', 'Factor'],
     'Factor': ['num', '(Expr)', 'id'],
 
-    'Type': ['NumType', 'void', 'char'],
-    'NumType': [r'double|int|float|short|long'],
+    'Type': ['NumType', 'void', 'char', 'TypeModifier'],
+    'NumType': [r'double|int|float'],
     'TypeModifier': [r'signed|unsigned|long|short', ''],
 
     'string': [r'^"[^"]*"$'],
@@ -386,21 +386,21 @@ def _parseLocalDecls(tokens, local_declsNode = ASTNode("local_decls")):
 
     return local_declsNode
 
-#local_decl -> type id; | type id = endofDecl; | empty
+#local_decl -> TypeModifier type id; | TypeModifier type id = endofDecl; | empty
 def _parseALocalDecl(tokens, typeModifier = None):
     global index
     global scope
     errormsg = 'Error: Invalid local_decl'
 
-    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or re.match(grammar['NumType'][0], tokens[str(index)][cc.TOKEN_INDEX]):
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or re.match(grammar['TypeModifier'][0], tokens[str(index)][cc.TOKEN_INDEX]):#checking to see if our decleration starts with a type or typeModifier
         declType = tokens[str(index)][cc.TOKEN_INDEX]
         local_decl = ASTNode(declType)
         index += 1
 
         errormsg += ', expected a identifier'
 
-        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or re.match(grammar['NumType'][0], tokens[str(index)][cc.TOKEN_INDEX]):
-            typeModifier = declType
+        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or re.match(grammar['NumType'][0], tokens[str(index)][cc.TOKEN_INDEX]): #There can be two type modifiers in a row, so we check for that. We want to not do an else, because there could just be the one type modifier or type
+            typeModifier = declType#Change the first declType to the typeModifier, since it appeared this second type
             declType = tokens[str(index)][cc.TOKEN_INDEX]
             local_decl = ASTNode(declType)
             index +=1
@@ -467,7 +467,7 @@ def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode):
     global index
     local_decl.add_child(exprNode)
 
-    if re.match(grammar['NumType'][0], declType):
+    if re.match(grammar['NumType'][0], declType) or re.match(grammar['TypeModifier'][0], declType): #A typemodifier can be a type in c
 
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
             symbolTable.add_variable(declId, declType, scope)

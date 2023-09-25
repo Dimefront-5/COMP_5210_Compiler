@@ -2,7 +2,7 @@ int hello = 5;
 char mon = '2';
 
 int main (int a, char b, float d) {
-    unsigned int i = 4;
+    long i = 4;
     char c = 'c';
     float j = 32.4;
     double k;
