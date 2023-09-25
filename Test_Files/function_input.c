@@ -6,7 +6,7 @@ int main (int a, char b, float d) {
     char c = 'c';
     float j = 32.4;
 
-    hello = 6;
+    hello = 6 + 5 -7 * 8 / 9 * (8 + 2);
     return i;
 }
 

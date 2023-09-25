@@ -448,7 +448,7 @@ def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode):
     global index
     local_decl.add_child(exprNode)
 
-    if (declType == 'int' or declType == 'float') and tokens[str(index-1)][cc.TOKEN_TYPE_INDEX] == 'number':
+    if declType == 'int' or declType == 'float':
 
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
             symbolTable.add_variable(declId, declType, scope)
@@ -765,9 +765,10 @@ def _parseExpr(tokens):
             return None
         
         addOpNode.add_child(exprNode)
-
+        print(addOpNode)
         return addOpNode
     
+    print(termNode)
     return termNode
 
 def _parseTerm(tokens):
