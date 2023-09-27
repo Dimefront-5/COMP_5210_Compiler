@@ -125,13 +125,6 @@ class ASTNode:
             output += "%s%s" % (pre, node.value) + "\n"
         return output
     
-    def ast_to_expr(self):
-        if self.value == "+":
-            return f"({self.children[0].ast_to_expr()} + {self.children[1].ast_to_expr()})"
-        elif self.value == "*":
-            return f"({self.children[0].ast_to_expr()} * {self.children[1].ast_to_expr()})"
-        else:
-            return str(self.value)
 
 
 global index
@@ -381,18 +374,20 @@ def _parseLocalDecls(tokens, local_declsNode = ASTNode("local_decls")):
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == "type modifier": #are there more local_decls?
         local_declsNode2 = _parseLocalDecls(tokens, local_declsNode)
         local_declsNode2.add_child(local_declsNodechild)
+
     else:
         local_declsNode.add_child(local_declsNodechild)
 
     return local_declsNode
 
+#TODO: Refactor
 #local_decl -> TypeModifier type id; | TypeModifier type id = endofDecl; | empty
 def _parseALocalDecl(tokens, typeModifier = None):
     global index
     global scope
     errormsg = 'Error: Invalid local_decl'
 
-    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or re.match(grammar['TypeModifier'][0], tokens[str(index)][cc.TOKEN_INDEX]):#checking to see if our decleration starts with a type or typeModifier
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or re.match(grammar['TypeModifier'][0], tokens[str(index)][cc.TOKEN_INDEX]): #checking to see if our decleration starts with a type or typeModifier
         declType = tokens[str(index)][cc.TOKEN_INDEX]
         local_decl = ASTNode(declType)
         index += 1
@@ -447,10 +442,11 @@ def _parseEndofDecl(tokens, local_decl, declType, declId):
     
     if tokens[str(index)][cc.TOKEN_INDEX] == '=':
         index += 1
+        first_number_index = index
         exprNode = _parseExpr(tokens)
 
         if exprNode != None: #If it isn't none, it is a number/expression that results in a number
-            local_decl = _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode)
+            local_decl = _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode, first_number_index) # A lot we are passing in, but I think this is better than creating a list to pass in
             return local_decl
             
         elif tokens[str(index)][cc.TOKEN_INDEX] == '"' or tokens[str(index)][cc.TOKEN_INDEX] == "'":
@@ -460,9 +456,24 @@ def _parseEndofDecl(tokens, local_decl, declType, declId):
     _customError("Error: Invalid local_decl", tokens, index)
 
 
+#We are going through from the first index of the expression and adding them to recreate the expression
+def _expressionRecreator(tokens, first_number_index):
+    global index
+    expression = ''
+    while (first_number_index < index):
+        if tokens[str(first_number_index)][cc.TOKEN_INDEX] == ')':
+            expression = expression[:-1] #We want to remove the last space between the number and the close parens.
+
+        expression += tokens[str(first_number_index)][cc.TOKEN_INDEX]
+
+        if tokens[str(first_number_index)][cc.TOKEN_INDEX] != '(': #We don't want a space in the case of a open parens
+            expression += ' '
+        first_number_index += 1
+
+    return expression.strip()
 
 #Parses our number endofDecl
-def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode):
+def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode, first_number_index):
     global scope
     global index
     local_decl.add_child(exprNode)
@@ -470,9 +481,10 @@ def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode):
     if re.match(grammar['NumType'][0], declType) or re.match(grammar['TypeModifier'][0], declType): #A typemodifier can be a type in c
 
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+            expression = _expressionRecreator(tokens, first_number_index) #We want to pass in the value for our symbol table
             symbolTable.add_variable(declId, declType, scope)
             #Pass in the name, type, and scope
-            symbolTable.add_value(declId, exprNode.ast_to_expr(), scope)
+            symbolTable.add_value(declId, expression, scope)
             #Passing in the name, value, and scope
             index += 1
             return local_decl
@@ -547,7 +559,8 @@ def _parseStmt(tokens):
         if tokens[str(index)][cc.TOKEN_INDEX] in functionArguments: #Checking to see if the variable is a function argument
             returnNode = _parseAssignStmt(tokens, functionArguments[tokens[str(index)][cc.TOKEN_INDEX]])
             return returnNode
-        elif iftype != None:#if it is not a global, pass in the function scope
+        
+        elif iftype != None: #if it is not a global, pass in the function scope
             returnNode = _parseAssignStmt(tokens, iftype[0])
             return returnNode
             
@@ -565,7 +578,7 @@ def _parseStmt(tokens):
     return None
 
 #return stmt parser ----------------
-
+#TODO: Refactor
 #returnstmt -> return; | return expr; | return character | return string | return id;
 def _parseReturnStmt(tokens):
     global index
@@ -598,6 +611,21 @@ def _parseReturnStmt(tokens):
         index += 1
         return returnNode
     
+    elif tokens[str(index)][cc.TOKEN_INDEX] == '\'' or tokens[str(index)][cc.TOKEN_INDEX] == '\"':
+        scope_type = symbolTable.get_scope_type(scope)
+        if scope_type == 'char':
+            index += 1
+            returnNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
+            index += 2 #We want to skip the closing quote
+            if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+                index += 1
+                return returnNode
+            else:
+                _customError("Error: Invalid return statement, missing a semicolon", tokens, index)
+        else:
+            _customError("Error: Invalid return type, expected a return type of " + scope_type + " but received a char type", tokens, index)
+
+
     _customError("Error: Invalid return statement", tokens, index)
 
 
@@ -812,6 +840,7 @@ def _parseTerm(tokens):
 def _parseFactor(tokens):
     global index
     global scope
+
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
         isIdInFunction = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
         isIdInGlobal = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], "global")
@@ -850,4 +879,3 @@ def _parseFactor(tokens):
         
     else:
         return None
-
