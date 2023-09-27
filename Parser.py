@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 9/24/2023
+-@date: 9/27/2023
 
 - Will parse through our token list and output a AST along with a symbol table
 - Works for the below grammar
@@ -380,47 +380,14 @@ def _parseLocalDecls(tokens, local_declsNode = ASTNode("local_decls")):
 
     return local_declsNode
 
-#TODO: Refactor
 #local_decl -> TypeModifier type id; | TypeModifier type id = endofDecl; | empty
 def _parseALocalDecl(tokens, typeModifier = None):
     global index
     global scope
-    errormsg = 'Error: Invalid local_decl'
 
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or re.match(grammar['TypeModifier'][0], tokens[str(index)][cc.TOKEN_INDEX]): #checking to see if our decleration starts with a type or typeModifier
-        declType = tokens[str(index)][cc.TOKEN_INDEX]
-        local_decl = ASTNode(declType)
-        index += 1
-
-        errormsg += ', expected a identifier'
-
-        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or re.match(grammar['NumType'][0], tokens[str(index)][cc.TOKEN_INDEX]): #There can be two type modifiers in a row, so we check for that. We want to not do an else, because there could just be the one type modifier or type
-            typeModifier = declType#Change the first declType to the typeModifier, since it appeared this second type
-            declType = tokens[str(index)][cc.TOKEN_INDEX]
-            local_decl = ASTNode(declType)
-            index +=1
-
-        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
-            declId = tokens[str(index)][cc.TOKEN_INDEX]
-            id_decl = ASTNode(declId)
-            if typeModifier != None:#We are seeing if the type modifier exists, if not we will pass in a empty node
-                id_decl.add_child(ASTNode(typeModifier))
-            id_decl.add_child(local_decl)
-            index += 1
-
-            errormsg = 'Error: Invalid local_decl, expected a \';\''
-            if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-                symbolTable.add_variable(declId, declType, scope) # we wait to add this till we know it is valid. 
-                #Passing in the name of the variable, the type of the variable, and the scope of the variable - Name(id), Type, Scope(Will be function name)
-                index += 1
-                return id_decl
-            
-            else: #If there is no semiclon, we check for a '=' and then parse the end of the decl, assuming it is valid
-                endOfDecl = _parseEndofDecl(tokens, id_decl, declType, declId) 
-                if endOfDecl != None:
-                    return id_decl
-                
-        _customError(errormsg, tokens, index) #We only throw this if it is the start of a decl and then is invalid
+        id_decl = _parsingtheRestofLocalDecl(tokens, typeModifier)
+        return id_decl
 
     elif tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type modifier':
         declModifier = tokens[str(index)][cc.TOKEN_INDEX]
@@ -432,6 +399,44 @@ def _parseALocalDecl(tokens, typeModifier = None):
 
     return None #We return none in the case that there are no local_decls
 
+#I broke this out into a new function for readability, If we find a type or typeModifier we call this and start to check for typemodifiers and ids
+#typemodifier -> signed | unsigned | long | short | empty
+def _parsingtheRestofLocalDecl(tokens, typeModifier):
+    global index
+    global scope
+    declType = tokens[str(index)][cc.TOKEN_INDEX]
+    local_decl = ASTNode(declType)
+    index += 1
+
+    errormsg = ', expected a identifier'
+
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or re.match(grammar['NumType'][0], tokens[str(index)][cc.TOKEN_INDEX]): #There can be two type modifiers in a row, so we check for that. We want to not do an else, because there could just be the one type modifier or type
+        typeModifier = declType#Change the first declType to the typeModifier, since it appeared this second type
+        declType = tokens[str(index)][cc.TOKEN_INDEX]
+        local_decl = ASTNode(declType)
+        index +=1
+
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+        declId = tokens[str(index)][cc.TOKEN_INDEX]
+        id_decl = ASTNode(declId)
+        if typeModifier != None:#We are seeing if the type modifier exists, if not we will pass in a empty node
+            id_decl.add_child(ASTNode(typeModifier))
+        id_decl.add_child(local_decl)
+        index += 1
+
+        errormsg = 'Error: Invalid local_decl, expected a \';\''
+        if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+            symbolTable.add_variable(declId, declType, scope) # we wait to add this till we know it is valid. 
+            #Passing in the name of the variable, the type of the variable, and the scope of the variable - Name(id), Type, Scope(Will be function name)
+            index += 1
+            return id_decl
+        
+        else: #If there is no semiclon, we check for a '=' and then parse the end of the decl, assuming it is valid
+            endOfDecl = _parseEndofDecl(tokens, id_decl, declType, declId) 
+            if endOfDecl != None:
+                return id_decl
+            
+    _customError(errormsg, tokens, index) #We only throw this if it is the start of a decl and then is invalid
 
 #endofDecl parser ----------------
 
@@ -578,7 +583,6 @@ def _parseStmt(tokens):
     return None
 
 #return stmt parser ----------------
-#TODO: Refactor
 #returnstmt -> return; | return expr; | return character | return string | return id;
 def _parseReturnStmt(tokens):
     global index
@@ -586,48 +590,59 @@ def _parseReturnStmt(tokens):
     index += 1
 
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier': #Return can be a id or number.
+        returnNode = _parseReturnStmtNumber(tokens)
+        return returnNode
         
-        numNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
-
-        if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':#Is our return a variable?
-            idType = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
-
-        returnNode.add_child(numNode)
-        index += 1
-
-        scope_type = symbolTable.get_scope_type(scope)
-        if re.match(grammar['NumType'][0], scope_type) and tokens[str(index-1)][cc.TOKEN_TYPE_INDEX] == 'number': #A number can fit in with both a float and int
-            if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-                index += 1
-                return returnNode #We don't need ';' in our AST
-        elif idType[0] == scope_type or (re.match(grammar['NumType'][0], idType[0]) and re.match(grammar['NumType'][0], scope_type)): #We are seeing if the type of our variable matches the return type of the function
-            if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-                index += 1
-                return returnNode
-            
-        _customError("Error: Invalid return type", tokens, index-1)
-
     elif tokens[str(index)][cc.TOKEN_INDEX] == ';': #If we have a return with no value
         index += 1
         return returnNode
     
     elif tokens[str(index)][cc.TOKEN_INDEX] == '\'' or tokens[str(index)][cc.TOKEN_INDEX] == '\"':
-        scope_type = symbolTable.get_scope_type(scope)
-        if scope_type == 'char':
-            index += 1
-            returnNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
-            index += 2 #We want to skip the closing quote
-            if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-                index += 1
-                return returnNode
-            else:
-                _customError("Error: Invalid return statement, missing a semicolon", tokens, index)
-        else:
-            _customError("Error: Invalid return type, expected a return type of " + scope_type + " but received a char type", tokens, index)
-
+        returnNode = _parseReturnStmtChar(tokens)
+        return returnNode
 
     _customError("Error: Invalid return statement", tokens, index)
 
+#refactored from _parseReturnStmt. We want to check to see if the type of our variable matches the return type of the function
+def _parseReturnStmtChar(tokens):
+    global index
+    returnNode = ASTNode("return")
+    scope_type = symbolTable.get_scope_type(scope)
+    if scope_type == 'char':
+        index += 1
+        returnNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
+        index += 2 #We want to skip the closing quote
+        if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+            index += 1
+            return returnNode
+        else:
+            _customError("Error: Invalid return statement, missing a semicolon", tokens, index)
+    else:
+        _customError("Error: Invalid return type, expected a return type of " + scope_type + " but received a char type", tokens, index)
+
+#refactored from _parseReturnStmt. We want to check to see if the type of our variable matches the return type of the function
+def _parseReturnStmtNumber(tokens):
+    global index
+    returnNode = ASTNode("return")
+
+    numNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':#Is our return a variable?
+        idType = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
+
+    returnNode.add_child(numNode)
+    index += 1
+    scope_type = symbolTable.get_scope_type(scope)
+    if re.match(grammar['NumType'][0], scope_type) and tokens[str(index-1)][cc.TOKEN_TYPE_INDEX] == 'number': #A number can fit in with both a float and int
+        if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+            index += 1
+            return returnNode #We don't need ';' in our AST
+    elif idType[0] == scope_type or (re.match(grammar['NumType'][0], idType[0]) and re.match(grammar['NumType'][0], scope_type)): #We are seeing if the type of our variable matches the return type of the function
+        if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+            index += 1
+            return returnNode
+        
+    _customError("Error: Invalid return type", tokens, index-1)
 
 #while stmt parser ----------------
 
