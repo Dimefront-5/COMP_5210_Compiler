@@ -20,7 +20,7 @@ grammar = {
     'Decl': ['Type id (Args) \{Local_Decls stmtList\}, Type id = endofDecl;'],
 
     'Args': ['Arg', 'Arg\, Args'],
-    'Arg': ['Type id', ''],
+    'Arg': ['Type id', ''], #No tpye modifier and type for args
 
     'Local_Decls': ['Local_Decl', 'Local_Decl Local_Decls'],
     'Local_Decl': ['TypeModifier Type id;', 'TypeModifier Type id = EndOfDecl;',''],#This also turns into just type id = endofDecl; or type id; Since typemodifier can be empty
@@ -48,7 +48,7 @@ grammar = {
 
     'Type': ['NumType', 'void', 'char', 'TypeModifier'],
     'NumType': [r'double|int|float'],
-    'TypeModifiersToBegin': ['TypeModifier', 'Empty'],#I had to break it up like this so when a type picks a typemodifier, it can't go to empty and then we have no type
+    'TypeModifiersToBegin': ['TypeModifier', 'Empty'], #I had to break it up like this so when a type picks a typemodifier, it can't go to empty and then we have no type
     'TypeModifier': [r'signed|unsigned|long|short'],
     'Empty': [''],
 
@@ -104,9 +104,12 @@ class SymbolTable:
         for scope in self.symbolTable:
             output += "Scope: " + scope + "\n\t" + "Return Type: " + self.symbolTable[scope]['return_type'] + "\n\tArguments: " + str(self.symbolTable[scope]['args']) + "\n"
             output += "\tVariables:\n"
+
             for variable in self.symbolTable[scope]:
+
                 if variable != 'return_type' and variable != 'args':
                     output += "\t\t" + variable + ": " + self.symbolTable[scope][variable][0]
+
                     if len(self.symbolTable[scope][variable]) > 1:
                         output += " = " + str(self.symbolTable[scope][variable][1])
                         output += "\n"
@@ -124,6 +127,9 @@ class ASTNode:
 
     def add_child(self, child_node):
         self.children.append(child_node)
+
+    def reverse_children(self):
+        self.children.reverse()
 
     def __str__(self):
         output = ""
@@ -289,6 +295,7 @@ def _functionDecl(tokens, idNode, typeNode, declNode):
 #start of args parser ----------------
 
 #staging for parse args, just creating a overall args node to pass in, then checking to see if there are any args
+#We have this so so we can add each node to the main args node, and then add the main args node to the decl node
 def _parseArgsSetup(tokens, declNode):
     global index
 
@@ -424,8 +431,10 @@ def _parsingtheRestofLocalDecl(tokens, typeModifier):
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
         declId = tokens[str(index)][cc.TOKEN_INDEX]
         id_decl = ASTNode(declId)
+
         if typeModifier != None:#We are seeing if the type modifier exists, if not we will pass in a empty node
             id_decl.add_child(ASTNode(typeModifier))
+
         id_decl.add_child(local_decl)
         index += 1
 
@@ -474,7 +483,7 @@ def _expressionRecreator(tokens, first_number_index):
         if tokens[str(first_number_index)][cc.TOKEN_INDEX] == ')':
             expression = expression[:-1] #We want to remove the last space between the number and the close parens.
 
-        if tokens[str(first_number_index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+        if tokens[str(first_number_index)][cc.TOKEN_TYPE_INDEX] == 'identifier': #Checking to see if the id in the expr is a number
 
             symbol_type = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], scope)
             symbol_global_type = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], "global")
@@ -485,7 +494,7 @@ def _expressionRecreator(tokens, first_number_index):
             elif tokens[str(first_number_index)][cc.TOKEN_INDEX] in symbol_argument_type:
                 symbol_type = symbol_argument_type[tokens[str(first_number_index)][cc.TOKEN_INDEX]]
 
-            if symbol_type == 'char':
+            if symbol_type == 'char': #Only non-number type we allow is a char
                 _customError('Error: Invalid Expression, cannot use a character in an expression', tokens, index)
 
 
@@ -521,7 +530,6 @@ def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode, first_
         index -= 1 #Go back to number start
         _customError('Error: Invalid assignment, expected ' + declType + ' but received a non-' + declType + ' value', tokens, index)
 
-
 #Parses our string and character endofDecl
 def _parseEndofDeclString(tokens, local_decl, declType, declId):
     global index
@@ -554,10 +562,12 @@ def _parseStmtList(tokens, stmtListNode):
     stmtNode = _parseStmt(tokens)
     if stmtNode == None:
         return None
+    
     if tokens[str(index)][cc.TOKEN_INDEX] != '}':
         stmtListNode.add_child(stmtNode)
         stmtListNode2 = _parseStmtList(tokens, stmtListNode)
         return stmtListNode2
+    
     else:
         stmtListNode.add_child(stmtNode)
 
@@ -565,9 +575,10 @@ def _parseStmtList(tokens, stmtListNode):
 
 #start of stmt parser ----------------
 
-#stmt -> returnstmt | ifstmt | assignstmt | whilestmt | empty
+#stmt -> returnstmt | ifstmt | assignstmt | whilestmt |  functionCall | empty
 def _parseStmt(tokens):
     global index
+
     if tokens[str(index)][cc.TOKEN_INDEX] == 'return':
         returnNode = _parseReturnStmt(tokens)
         return returnNode
@@ -577,23 +588,8 @@ def _parseStmt(tokens):
         return returnNode
         
     elif tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier' and tokens[str(index+1)][cc.TOKEN_INDEX] == '=':
-        iftype = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
-        globalisType = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], "global") #Checking to see if the variable is declared on a global or local scale at least.
-        functionArguments = symbolTable.get_args(scope)
-
-        if tokens[str(index)][cc.TOKEN_INDEX] in functionArguments: #Checking to see if the variable is a function argument
-            returnNode = _parseAssignStmt(tokens, functionArguments[tokens[str(index)][cc.TOKEN_INDEX]])
-            return returnNode
-        
-        elif iftype != None: #if it is not a global, pass in the function scope
-            returnNode = _parseAssignStmt(tokens, iftype[0])
-            return returnNode
-            
-        elif globalisType != None:
-            returnNode = _parseAssignStmt(tokens, globalisType[0])
-            return returnNode
-        else:
-            _customError("Error: Undeclared identifier", tokens, index)
+        returnNode = _parseAssignStmtInitialCheck(tokens)
+        return returnNode
     
     elif tokens[str(index)][cc.TOKEN_INDEX] == 'while':
         returnNode = _parseWhileStmt(tokens)
@@ -610,6 +606,9 @@ def _parseStmt(tokens):
         
     return None
 
+#Function call parser ----------------
+
+#functionCall -> id(Params);
 def _parseFunctionCall(tokens):
     global index
     global scope
@@ -625,7 +624,7 @@ def _parseFunctionCall(tokens):
 
         paramNode, params = _setupParseParameters(tokens, functionNode)
 
-        if paramNode != None:
+        if paramNode != None: 
             mainNode.add_child(paramNode)
 
         functionArguments = symbolTable.get_args(functionName)
@@ -642,6 +641,7 @@ def _parseFunctionCall(tokens):
     
     _customError(errormsg, tokens, index)
 
+#Checking the types that were passed in versus the function argument types
 def _checkingPassedInTypesWithParameters(tokens, args, functionArguments):
     global index
     global scope
@@ -655,7 +655,7 @@ def _checkingPassedInTypesWithParameters(tokens, args, functionArguments):
         errormsg = 'Error: Invalid function call, passed in the wrong amount of arguments'
 
     else:
-        argsValues = list(args.values())
+        argsValues = list(args.values()) #Turning our dicts into lists, makes it easier to compare values
         functionArgumentsValues = list(functionArguments.values())
         for arg_value, functionArg_value in zip(argsValues, functionArgumentsValues):
             if arg_value != functionArg_value:
@@ -663,10 +663,7 @@ def _checkingPassedInTypesWithParameters(tokens, args, functionArguments):
                 _customError(errormsg, tokens, index)
         return None
             
-
-
-    
-
+#Just like _setupParseArgs, we are creating a node to pass in, then checking to see if there are any params
 def _setupParseParameters(tokens, functionNode):
     global index
 
@@ -678,8 +675,7 @@ def _setupParseParameters(tokens, functionNode):
     functionNode.add_child(paramNode)
     return functionNode, params
 
-
-
+#params -> param, params | param
 def _parseParameters(tokens, mainNode):
     global index
 
@@ -692,12 +688,15 @@ def _parseParameters(tokens, mainNode):
         mainNode.add_child(paramNode)
         index += 1
         paramNode2, params2 = _parseParameters(tokens, mainNode)
+        if params2 == None:
+            _customError("Error: Invalid function call, missing a parameter after the ,", tokens, index)
+
         params.update(params2)
         return paramNode2, params
     
     return paramNode, params
     
-
+#param -> expr | string | character | empty
 def _parseOneParam(tokens):
     global index
     global scope
@@ -708,9 +707,9 @@ def _parseOneParam(tokens):
     
     exprNode = _parseExpr(tokens)
 
-    if exprNode != None:
+    if exprNode != None: #A expression can be a ID or a number
         expression = _expressionRecreator(tokens, first_number_index)
-        if len(expression) == 1 and tokens[str(first_number_index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+        if len(expression) == 1 and tokens[str(first_number_index)][cc.TOKEN_TYPE_INDEX] == 'identifier': #If there is only a variable, our _parseExpr makes sure it is already declared.
             symbol_type = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], scope)
             params[expression] = symbol_type[0]
         else: 
@@ -780,26 +779,30 @@ def _parseReturnStmtNumberAndID(tokens, first_number_index):
 
     returnValue = _expressionRecreator(tokens, first_number_index)
 
-    print(returnValue, tokens[str(first_number_index)][cc.TOKEN_INDEX], tokens[str(index)][cc.TOKEN_INDEX], index)
     if len(returnValue) == 1 and tokens[str(first_number_index)][cc.TOKEN_TYPE_INDEX] == 'identifier':#Is our return a variable?
+
         idType = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], scope)
         globalisType = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], "global") #Checking to see if the variable is declared on a global or local scale at least.
         functionArguments = symbolTable.get_args(scope)
 
         if globalisType != None:
             idType = globalisType
+
         elif tokens[str(first_number_index)][cc.TOKEN_INDEX] in functionArguments:
             idType = functionArguments[tokens[str(first_number_index)][cc.TOKEN_INDEX]]
+
         elif idType == None:
             _customError("Error: Undeclared identifier", tokens, index)
 
     scope_type = symbolTable.get_scope_type(scope)
 
+    #If the type of the scope is a number type and is our expr a number type, or is it a big expr that will result in a number?
     if re.match(grammar['NumType'][0], scope_type) and (len(returnValue) > 1 or tokens[str(first_number_index)][cc.TOKEN_TYPE_INDEX] == 'number'): #A number can fit in with both a float and int
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
             index += 1
             return returnValue #We don't need ';' in our AST
         
+    #Does our scope type match the type of our variable, or are both of our types number types?
     elif idType[0] == scope_type or (re.match(grammar['NumType'][0], idType[0]) and re.match(grammar['NumType'][0], scope_type)): #We are seeing if the type of our variable matches the return type of the function
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
             index += 1
@@ -957,6 +960,28 @@ def _paseElseStmt(tokens):
 
 #assignment stmt parser ----------------
 
+#Checking to see if the variable is declared somewhere within our program.
+def _parseAssignStmtInitialCheck(tokens):
+    iftype = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
+    globalisType = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], "global") #Checking to see if the variable is declared on a global or local scale at least.
+    functionArguments = symbolTable.get_args(scope)
+
+    if tokens[str(index)][cc.TOKEN_INDEX] in functionArguments: #Checking to see if the variable is a function argument
+        returnNode = _parseAssignStmt(tokens, functionArguments[tokens[str(index)][cc.TOKEN_INDEX]])
+        return returnNode
+    
+    elif iftype != None: #if it is not a global, pass in the function scope
+        returnNode = _parseAssignStmt(tokens, iftype[0])
+        return returnNode
+        
+    elif globalisType != None:
+        returnNode = _parseAssignStmt(tokens, globalisType[0])
+        return returnNode
+    else:
+        _customError("Error: Undeclared identifier", tokens, index)
+
+
+
 #assignstmt -> id = endofDecl;
 def _parseAssignStmt(tokens, idType):
     global index
@@ -1020,6 +1045,7 @@ def _parseFactor(tokens):
     global scope
 
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+        #Is our Identifier declared in a global, local, or parameter scope?
         isIdInFunction = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
         isIdInGlobal = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], "global")
         isIdInFunctionParams = symbolTable.get_args(scope)
