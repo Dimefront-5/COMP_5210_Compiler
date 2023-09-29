@@ -23,15 +23,19 @@ grammar = {
     'Arg': ['Type id', ''],
 
     'Local_Decls': ['Local_Decl', 'Local_Decl Local_Decls'],
-    'Local_Decl': ['TypeModifier Type id;', 'TypeModifier Type id = EndOfDecl;',''],
+    'Local_Decl': ['TypeModifier Type id;', 'TypeModifier Type id = EndOfDecl;',''],#This also turns into just type id = endofDecl; or type id; Since typemodifier can be empty
 
     'StmtList': ['Stmt', 'Stmt StmtList'],
-    'Stmt': ['ReturnStmt', 'AssignStmt', 'WhileStmt', 'IfStmt', ''],
+    'Stmt': ['ReturnStmt', 'AssignStmt', 'WhileStmt', 'IfStmt', 'FunctionCall' ,''],
 
     'ReturnStmt': ['return num;', 'return id;', 'return;', 'return expr;', 'return character', 'return string'],
     'AssignStmt': ['id = EndOfDecl;'],
     'WhileStmt': ['while (Conditional_Expr) \{StmtList\}'],
     'IfStmt': ['if (Conditional_Expr) \{StmtList\}', 'if (Conditional_Expr) \{StmtList\} else \{StmtList\}'],
+    'FunctionCall': ['id(Params);'],
+
+    'Params': ['Param', 'Param\, Params'],
+    'Param': ['Expr', 'string', 'character', 'id'],
 
     'Conditional_Expr': ['Expr Relop Expr'],
     'Relop': [r'^==$|^!=$|^>$|^>=$|^<$|^<=$'],
@@ -44,7 +48,9 @@ grammar = {
 
     'Type': ['NumType', 'void', 'char', 'TypeModifier'],
     'NumType': [r'double|int|float'],
-    'TypeModifier': [r'signed|unsigned|long|short', ''],
+    'TypeModifiersToBegin': ['TypeModifier', 'Empty'],#I had to break it up like this so when a type picks a typemodifier, it can't go to empty and then we have no type
+    'TypeModifier': [r'signed|unsigned|long|short'],
+    'Empty': [''],
 
     'string': [r'^"[^"]*"$'],
     'character': ['\'[a-zA-Z]\''],
@@ -206,7 +212,6 @@ def _parseDeclList(tokens, declListNode = ASTNode("declList")):
     
 
     return declListNode
-
 
 #decl -> type id (Args) {local_decls stmtList} | type id = endofDecl;
 def _parseDecl(tokens):
@@ -469,6 +474,23 @@ def _expressionRecreator(tokens, first_number_index):
         if tokens[str(first_number_index)][cc.TOKEN_INDEX] == ')':
             expression = expression[:-1] #We want to remove the last space between the number and the close parens.
 
+        if tokens[str(first_number_index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+
+            symbol_type = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], scope)
+            symbol_global_type = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], "global")
+            symbol_argument_type = symbolTable.get_args(scope)
+
+            if symbol_global_type != None:
+                symbol_type = symbol_global_type
+            elif tokens[str(first_number_index)][cc.TOKEN_INDEX] in symbol_argument_type:
+                symbol_type = symbol_argument_type[tokens[str(first_number_index)][cc.TOKEN_INDEX]]
+
+            if symbol_type == 'char':
+                _customError('Error: Invalid Expression, cannot use a character in an expression', tokens, index)
+
+
+
+
         expression += tokens[str(first_number_index)][cc.TOKEN_INDEX]
 
         if tokens[str(first_number_index)][cc.TOKEN_INDEX] != '(': #We don't want a space in the case of a open parens
@@ -541,8 +563,6 @@ def _parseStmtList(tokens, stmtListNode):
 
     return stmtListNode
 
-
-
 #start of stmt parser ----------------
 
 #stmt -> returnstmt | ifstmt | assignstmt | whilestmt | empty
@@ -556,7 +576,7 @@ def _parseStmt(tokens):
         returnNode = _parseIfStmt(tokens)
         return returnNode
         
-    elif tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+    elif tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier' and tokens[str(index+1)][cc.TOKEN_INDEX] == '=':
         iftype = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
         globalisType = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], "global") #Checking to see if the variable is declared on a global or local scale at least.
         functionArguments = symbolTable.get_args(scope)
@@ -580,7 +600,137 @@ def _parseStmt(tokens):
         if returnNode != None:
             return returnNode
         
+    elif tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier': #We don't do both checks in the same statement, that way if there is an identifier, we will error. 
+        if tokens[str(index + 1)][cc.TOKEN_INDEX] == '(':#We wait to increase the index after the check, so we can leave the error index the same
+            index += 2 
+            returnNode = _parseFunctionCall(tokens)
+            return returnNode
+        else: 
+            _customError("Error: Invalid statement", tokens, index)
+        
     return None
+
+def _parseFunctionCall(tokens):
+    global index
+    global scope
+    errormsg = 'Error: Invalid function call, function isn\'t declared'
+    mainNode = ASTNode("functionCall")
+
+    functionName = tokens[str(index-2)][cc.TOKEN_INDEX]
+
+    isFunction = symbolTable.get_scope_type(functionName)
+
+    if isFunction != None:#If the function is declared
+        functionNode = ASTNode(functionName)
+
+        paramNode, params = _setupParseParameters(tokens, functionNode)
+
+        if paramNode != None:
+            mainNode.add_child(paramNode)
+
+        functionArguments = symbolTable.get_args(functionName)
+
+        _checkingPassedInTypesWithParameters(tokens, params, functionArguments)
+        
+        errormsg = 'Error: Invalid function call, missing a \')\''
+        if tokens[str(index)][cc.TOKEN_INDEX] == ')':
+            index += 1
+            errormsg = 'Error: Invalid function call, missing a \';\''
+            if tokens[str(index)][cc.TOKEN_INDEX] == ';':
+                index += 1
+                return mainNode
+    
+    _customError(errormsg, tokens, index)
+
+def _checkingPassedInTypesWithParameters(tokens, args, functionArguments):
+    global index
+    global scope
+
+    errormsg = 'Error: Invalid function call, passed in the wrong type'
+    print(args, functionArguments)
+    if (args == {} and functionArguments == {}) or (args == None and functionArguments == None) or (args == None and functionArguments == {}) or (args == {} and functionArguments == None): #Just saying that none and {} are equal for these purposes.
+        return None
+    
+    elif len(args) != len(functionArguments):
+        errormsg = 'Error: Invalid function call, passed in the wrong amount of arguments'
+
+    else:
+        argsValues = list(args.values())
+        functionArgumentsValues = list(functionArguments.values())
+        for arg_value, functionArg_value in zip(argsValues, functionArgumentsValues):
+            if arg_value != functionArg_value:
+                errormsg = 'Error: Invalid function call, passed in type ' + arg_value + ' but expected type ' + functionArg_value
+                _customError(errormsg, tokens, index)
+        return None
+            
+
+
+    
+
+def _setupParseParameters(tokens, functionNode):
+    global index
+
+    paramNode, params = _parseParameters(tokens, functionNode)
+
+    if paramNode == None:
+        return functionNode, None
+    
+    functionNode.add_child(paramNode)
+    return functionNode, params
+
+
+
+def _parseParameters(tokens, mainNode):
+    global index
+
+    paramNode, params = _parseOneParam(tokens)
+
+    if paramNode == None:
+        return None, None
+    
+    if tokens[str(index)][cc.TOKEN_INDEX] == ',':#Looking to see if there are multiple params |  ',' is our indicator
+        mainNode.add_child(paramNode)
+        index += 1
+        paramNode2, params2 = _parseParameters(tokens, mainNode)
+        params.update(params2)
+        return paramNode2, params
+    
+    return paramNode, params
+    
+
+def _parseOneParam(tokens):
+    global index
+    global scope
+    params = {}
+
+    errormsg = 'Error: Expected \')\' Temp'
+    first_number_index = index
+    
+    exprNode = _parseExpr(tokens)
+
+    if exprNode != None:
+        expression = _expressionRecreator(tokens, first_number_index)
+        if len(expression) == 1 and tokens[str(first_number_index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+            symbol_type = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], scope)
+            params[expression] = symbol_type[0]
+        else: 
+            params[expression] = 'int'
+
+        paramNode = ASTNode(expression)
+        return paramNode, params
+    
+    elif tokens[str(index)][cc.TOKEN_INDEX] == '\'' or tokens[str(index)][cc.TOKEN_INDEX] == '\"':
+        index += 1
+        paramNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+        params[tokens[str(index)][cc.TOKEN_INDEX]] = 'char'
+        index += 2 #We want to skip the closing quote
+        return paramNode, params
+    
+    elif tokens[str(index)][cc.TOKEN_INDEX] == ')':
+        return None, None
+        
+    _customError(errormsg, tokens, index)
+
 
 #return stmt parser ----------------
 #returnstmt -> return; | return expr; | return character | return string | return id;
@@ -589,8 +739,12 @@ def _parseReturnStmt(tokens):
     returnNode = ASTNode("return")
     index += 1
 
-    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number' or tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier': #Return can be a id or number.
-        returnNode = _parseReturnStmtNumber(tokens)
+    first_number_index = index
+    exprNode = _parseExpr(tokens)
+
+    if exprNode != None: #Return can be a id or number.
+        returnValue = _parseReturnStmtNumberAndID(tokens, first_number_index) #We don't use the returnValue, but it is because I have already succesfully parsed the expr, I just need to make sure it is a valid return type
+        returnNode.add_child(exprNode)
         return returnNode
         
     elif tokens[str(index)][cc.TOKEN_INDEX] == ';': #If we have a return with no value
@@ -598,7 +752,8 @@ def _parseReturnStmt(tokens):
         return returnNode
     
     elif tokens[str(index)][cc.TOKEN_INDEX] == '\'' or tokens[str(index)][cc.TOKEN_INDEX] == '\"':
-        returnNode = _parseReturnStmtChar(tokens)
+        returnValue = _parseReturnStmtChar(tokens)
+        returnNode.add_child(returnValue)
         return returnNode
 
     _customError("Error: Invalid return statement", tokens, index)
@@ -606,41 +761,49 @@ def _parseReturnStmt(tokens):
 #refactored from _parseReturnStmt. We want to check to see if the type of our variable matches the return type of the function
 def _parseReturnStmtChar(tokens):
     global index
-    returnNode = ASTNode("return")
     scope_type = symbolTable.get_scope_type(scope)
     if scope_type == 'char':
         index += 1
-        returnNode.add_child(ASTNode(tokens[str(index)][cc.TOKEN_INDEX]))
+        returnValue = tokens[str(index)][cc.TOKEN_INDEX]
         index += 2 #We want to skip the closing quote
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
             index += 1
-            return returnNode
+            return ASTNode(returnValue)
         else:
             _customError("Error: Invalid return statement, missing a semicolon", tokens, index)
     else:
         _customError("Error: Invalid return type, expected a return type of " + scope_type + " but received a char type", tokens, index)
 
 #refactored from _parseReturnStmt. We want to check to see if the type of our variable matches the return type of the function
-def _parseReturnStmtNumber(tokens):
+def _parseReturnStmtNumberAndID(tokens, first_number_index):
     global index
-    returnNode = ASTNode("return")
 
-    numNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+    returnValue = _expressionRecreator(tokens, first_number_index)
 
-    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':#Is our return a variable?
-        idType = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
+    print(returnValue, tokens[str(first_number_index)][cc.TOKEN_INDEX], tokens[str(index)][cc.TOKEN_INDEX], index)
+    if len(returnValue) == 1 and tokens[str(first_number_index)][cc.TOKEN_TYPE_INDEX] == 'identifier':#Is our return a variable?
+        idType = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], scope)
+        globalisType = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], "global") #Checking to see if the variable is declared on a global or local scale at least.
+        functionArguments = symbolTable.get_args(scope)
 
-    returnNode.add_child(numNode)
-    index += 1
+        if globalisType != None:
+            idType = globalisType
+        elif tokens[str(first_number_index)][cc.TOKEN_INDEX] in functionArguments:
+            idType = functionArguments[tokens[str(first_number_index)][cc.TOKEN_INDEX]]
+        elif idType == None:
+            _customError("Error: Undeclared identifier", tokens, index)
+
     scope_type = symbolTable.get_scope_type(scope)
-    if re.match(grammar['NumType'][0], scope_type) and tokens[str(index-1)][cc.TOKEN_TYPE_INDEX] == 'number': #A number can fit in with both a float and int
+
+    if re.match(grammar['NumType'][0], scope_type) and (len(returnValue) > 1 or tokens[str(first_number_index)][cc.TOKEN_TYPE_INDEX] == 'number'): #A number can fit in with both a float and int
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
             index += 1
-            return returnNode #We don't need ';' in our AST
+            return returnValue #We don't need ';' in our AST
+        
     elif idType[0] == scope_type or (re.match(grammar['NumType'][0], idType[0]) and re.match(grammar['NumType'][0], scope_type)): #We are seeing if the type of our variable matches the return type of the function
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
             index += 1
-            return returnNode
+            return returnValue
         
     _customError("Error: Invalid return type", tokens, index-1)
 
@@ -859,13 +1022,13 @@ def _parseFactor(tokens):
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
         isIdInFunction = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
         isIdInGlobal = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], "global")
-        isIdInFunctionValue = symbolTable.get_args(scope)
+        isIdInFunctionParams = symbolTable.get_args(scope)
 
         if isIdInFunction != None or isIdInGlobal != None:
             factor = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
             index += 1
             return factor
-        elif tokens[str(index)][cc.TOKEN_INDEX] in isIdInFunctionValue:
+        elif tokens[str(index)][cc.TOKEN_INDEX] in isIdInFunctionParams:
             factor = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
             index += 1
             return factor
