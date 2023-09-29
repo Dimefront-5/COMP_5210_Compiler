@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 9/27/2023
+-@date: 9/29/2023
 
 - Will parse through our token list and output a AST along with a symbol table
 - Works for the below grammar
@@ -35,7 +35,7 @@ grammar = {
     'FunctionCall': ['id(Params);'],
 
     'Params': ['Param', 'Param\, Params'],
-    'Param': ['Expr', 'string', 'character', 'id'],
+    'Param': ['Expr', 'string', 'character'],
 
     'Conditional_Expr': ['Expr Relop Expr'],
     'Relop': [r'^==$|^!=$|^>$|^>=$|^<$|^<=$'],
@@ -48,9 +48,8 @@ grammar = {
 
     'Type': ['NumType', 'void', 'char', 'TypeModifier'],
     'NumType': [r'double|int|float'],
-    'TypeModifiersToBegin': ['TypeModifier', 'Empty'], #I had to break it up like this so when a type picks a typemodifier, it can't go to empty and then we have no type
+    'TypeModifiersToBegin': ['TypeModifier', ''], #I had to break it up like this so when a type picks a typemodifier, it can't go to empty and then we have no type
     'TypeModifier': [r'signed|unsigned|long|short'],
-    'Empty': [''],
 
     'string': [r'^"[^"]*"$'],
     'character': ['\'[a-zA-Z]\''],
@@ -497,9 +496,6 @@ def _expressionRecreator(tokens, first_number_index):
             if symbol_type == 'char': #Only non-number type we allow is a char
                 _customError('Error: Invalid Expression, cannot use a character in an expression', tokens, index)
 
-
-
-
         expression += tokens[str(first_number_index)][cc.TOKEN_INDEX]
 
         if tokens[str(first_number_index)][cc.TOKEN_INDEX] != '(': #We don't want a space in the case of a open parens
@@ -647,7 +643,6 @@ def _checkingPassedInTypesWithParameters(tokens, args, functionArguments):
     global scope
 
     errormsg = 'Error: Invalid function call, passed in the wrong type'
-    print(args, functionArguments)
     if (args == {} and functionArguments == {}) or (args == None and functionArguments == None) or (args == None and functionArguments == {}) or (args == {} and functionArguments == None): #Just saying that none and {} are equal for these purposes.
         return None
     

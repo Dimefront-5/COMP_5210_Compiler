@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 9/24/2023
+-@date: 9/29/2023
 
 - Tokenizes our input file and returns a dictionary of tokens and their respective types
 
@@ -355,8 +355,10 @@ def symbol_tokenizer(line, character, column_number, line_number, dict_of_tokens
             dict_of_tokens[str(dictionaryIndex)] = ['symbols', double_symbol, line_number, column_number]
 
             if double_symbol == '//': #Skip over comments, they aren't tokens and aren't necessary for our compiler
+                dict_of_tokens[str(dictionaryIndex)] = ['comment', '//', line_number, column_number]
                 skip = len(line) - column_number - 1
             elif double_symbol == '/*': 
+                dict_of_tokens[str(dictionaryIndex)] = ['commentStart', '/*', line_number, column_number]
                 comment = True #don't calculate skip since we will be skipping entire lines
             else:
                 skip = 1
@@ -521,7 +523,7 @@ def main_tokenizer(line, line_number, dict_of_tokens, dictionaryIndex, comment):
         column_number += 1
     
     if '*/' in line and comment == True: #We do this after so we can skip over the final line
-        dict_of_tokens[str(dictionaryIndex)] = ['symbols', '*/', line_number, len(line) - 2]  #add the final */ to the tokens
+        dict_of_tokens[str(dictionaryIndex)] = ['commentEnd', '*/', line_number, len(line) - 2]  #add the final */ to the tokens
         comment = False
         dictionaryIndex += 1
 

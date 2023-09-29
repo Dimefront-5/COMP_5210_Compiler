@@ -30,9 +30,11 @@ def main():
 
     tokens = tk.main(inputFile)
 
-    parsetree, symbolTable = ps.parser(tokens)
+    output_for_tokens, error_output = _tokenOutputFormatter(tokens) #We want to print out the tokens before we remove comments
 
-    output_for_tokens, error_output = _tokenOutputFormatter(tokens)
+    tokens = _removingCommentsFromDictionary(tokens) #We want to remove comments before we start to parse, that way it won't mess with our language
+
+    parsetree, symbolTable = ps.parser(tokens)
 
     if error_output != "":
         print("Errors found in ", possibleInputFile, ":\n\n")
@@ -57,7 +59,6 @@ def main():
             sys.exit()
         else:
             print(symbolTable)
-
 
 
 #------ Inward Facing modules
@@ -99,7 +100,7 @@ def _tokenOutputFormatter(tokens):
             errorOutput += tokens[i][cc.TOKEN_TYPE_INDEX] + ":\n\tline number,column number - " + str(tokens[i][cc.LINE_NUMBER_INDEX]) + ","\
                         + str(tokens[i][cc.COLUMN_NUMBER_INDEX]) + "\t\'" + tokens[i][cc.TOKEN_INDEX] + "\'" +  "\n"
             continue
-
+        
         output += "Token Type: " + tokens[i][cc.TOKEN_TYPE_INDEX]
         output += " - Token: " + str(tokens[i][cc.TOKEN_INDEX])
         output += " - Line Number, Column Number: " + str(tokens[i][cc.LINE_NUMBER_INDEX]) + "," + str(tokens[i][cc.COLUMN_NUMBER_INDEX])
@@ -117,6 +118,17 @@ def _tokenOutputFormatter(tokens):
         '''
 
     return output, errorOutput
+
+#Removes comments that are found within our dictionary, and returns a new dictionary without the comments that is ordered correctly
+def _removingCommentsFromDictionary(dictionary):
+    newIndex = 0
+    newDictionary = {}
+    for key in dictionary.keys():
+        if dictionary[key][cc.TOKEN_TYPE_INDEX] != "comment" and dictionary[key][cc.TOKEN_TYPE_INDEX] != 'commentStart' and dictionary[key][cc.TOKEN_TYPE_INDEX] != 'commentEnd':
+            newDictionary[str(newIndex)] = dictionary[key]
+            newIndex += 1
+
+    return newDictionary
 
 if __name__ == "__main__":
     main()
