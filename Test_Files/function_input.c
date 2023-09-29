@@ -6,7 +6,7 @@ int help() {
 }
 
 int choice () {
-    if (5 *2 + (7*8) == 0) {
+    if (5 *2 + (7*8) == 0 || 5 + 6 == 0 && 5 == 6) {
         return 0;
         return 1;
     }
@@ -20,7 +20,7 @@ char choice2 (int i, char c) {
     while (i < 10) {
         i = i + 1;
     }
-    return 'j';
+    return 'c';
 }
 
 /*
@@ -30,7 +30,7 @@ int main (int a, char b, float d) { //I am checking to see if our comment remove
 
     //TEMP
     int temp = 5;
-    int i = 4;
+    int i = 5;
     char c = 'c';
     float j = 32.4;
     long int k;
@@ -40,6 +40,6 @@ int main (int a, char b, float d) { //I am checking to see if our comment remove
     choice();
     /* Lots of math below
     */
-    hello = 6 + 5 -7 * 8 / 9 * (8 + 2);
-    return 45 + 7;
+    hello = k + 5 -7 * 8 / 9 * (8 + 2);
+    return 70 +8;//This will technically be a vlaid return in c, so it is valid in my parser
 }

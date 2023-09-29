@@ -30,13 +30,14 @@ grammar = {
 
     'ReturnStmt': ['return num;', 'return id;', 'return;', 'return expr;', 'return character', 'return string'],
     'AssignStmt': ['id = EndOfDecl;'],
-    'WhileStmt': ['while (Conditional_Expr) \{StmtList\}'],
-    'IfStmt': ['if (Conditional_Expr) \{StmtList\}', 'if (Conditional_Expr) \{StmtList\} else \{StmtList\}'],
+    'WhileStmt': ['while (Conditional_Exprs) \{StmtList\}'],
+    'IfStmt': ['if (Conditional_Exprs) \{StmtList\}', 'if (Conditional_Expr) \{StmtList\} else \{StmtList\}'],
     'FunctionCall': ['id(Params);'],
 
     'Params': ['Param', 'Param\, Params'],
     'Param': ['Expr', 'string', 'character'],
 
+    'Condtional_Exprs': ['Conditional_Expr', 'Conditional_Expr && Conditional_Exprs', 'Conditional_Expr || Conditional_Exprs'],
     'Conditional_Expr': ['Expr Relop Expr'],
     'Relop': [r'^==$|^!=$|^>$|^>=$|^<$|^<=$'],
 
@@ -419,9 +420,10 @@ def _parsingtheRestofLocalDecl(tokens, typeModifier):
     local_decl = ASTNode(declType)
     index += 1
 
-    errormsg = ', expected a identifier'
+    errormsg = 'Error: expected a identifier'
 
-    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or re.match(grammar['NumType'][0], tokens[str(index)][cc.TOKEN_INDEX]): #There can be two type modifiers in a row, so we check for that. We want to not do an else, because there could just be the one type modifier or type
+
+    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'type' or re.match(grammar['TypeModifier'][0], tokens[str(index)][cc.TOKEN_INDEX]): #There can be two type modifiers in a row, so we check for that. We want to not do an else, because there could just be the one type modifier or type
         typeModifier = declType#Change the first declType to the typeModifier, since it appeared this second type
         declType = tokens[str(index)][cc.TOKEN_INDEX]
         local_decl = ASTNode(declType)
@@ -488,13 +490,15 @@ def _expressionRecreator(tokens, first_number_index):
             symbol_global_type = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], "global")
             symbol_argument_type = symbolTable.get_args(scope)
 
-            if symbol_global_type != None:
-                symbol_type = symbol_global_type
-            elif tokens[str(first_number_index)][cc.TOKEN_INDEX] in symbol_argument_type:
-                symbol_type = symbol_argument_type[tokens[str(first_number_index)][cc.TOKEN_INDEX]]
+            if symbol_type == None:#If the symbol is declared within the local scope, we want to ignore the global declerations
+                if symbol_global_type != None:
+                    symbol_type = symbol_global_type
 
-            if symbol_type == 'char': #Only non-number type we allow is a char
-                _customError('Error: Invalid Expression, cannot use a character in an expression', tokens, index)
+                elif tokens[str(first_number_index)][cc.TOKEN_INDEX] in symbol_argument_type:
+                    symbol_type = symbol_argument_type[tokens[str(first_number_index)][cc.TOKEN_INDEX]]
+
+            if symbol_type[0] == 'char': #Only non-number type we allow is a char
+                _customError('Error: Invalid Expression, cannot use a character in an expression', tokens, first_number_index)
 
         expression += tokens[str(first_number_index)][cc.TOKEN_INDEX]
 
@@ -797,6 +801,9 @@ def _parseReturnStmtNumberAndID(tokens, first_number_index):
             index += 1
             return returnValue #We don't need ';' in our AST
         
+    if scope_type == 'char' and tokens[str(first_number_index)][cc.TOKEN_TYPE_INDEX] == 'number':
+        _customError("Error: Invalid return type", tokens, index)
+        
     #Does our scope type match the type of our variable, or are both of our types number types?
     elif idType[0] == scope_type or (re.match(grammar['NumType'][0], idType[0]) and re.match(grammar['NumType'][0], scope_type)): #We are seeing if the type of our variable matches the return type of the function
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
@@ -811,22 +818,15 @@ def _parseReturnStmtNumberAndID(tokens, first_number_index):
 def _parseWhileStmt(tokens):
     global index
     global scope
-    whileNode = ASTNode("while")
     index += 1
     errormsg = 'Error: Invalid while statement'
 
     if tokens[str(index)][cc.TOKEN_INDEX] == '(':
         index += 1
-        exprNode = _parseExpr(tokens)
-        errormsg = 'Error: Invalid while statement, There must be something within the parens'
-        if exprNode != None:
-            conditionalExprNode = _parseConditionalExpr(tokens, exprNode)
-            whileNode.add_child(conditionalExprNode)
-            whileNode = _parseStmtInBrackets(tokens, whileNode)
-            return whileNode
+        whileNode = _setParseConditionalExpr(tokens, ASTNode('while'))
+        return whileNode
 
     _customError(errormsg, tokens, index)
-
 
 #If stmt parser ----------------
 
@@ -839,7 +839,7 @@ def _parseIfStmt(tokens):
 
     if tokens[str(index)][cc.TOKEN_INDEX] == '(':
         index += 1
-        if_exprNode = _parse_if_expr(tokens) #Passes it to another part that starts parsing the if_expr
+        if_exprNode = _setParseConditionalExpr(tokens, ASTNode('if')) #Passes it to another part that starts parsing the if_expr
         if if_exprNode == None:
             _customError("Error: Invalid if statement", tokens, index)
 
@@ -852,51 +852,74 @@ def _parseIfStmt(tokens):
     _customError("Error: Invalid if statement", tokens, index)
     return None
 
-#if_expr -> expr relop expr
-#ifstmt -> if (if_expr) {stmtList}
-def _parse_if_expr(tokens):
+#We use this with both the while and if statements
+#conditonal_exprs -> conditional_expr && conditional_expr | conditional_expr || conditional_expr | conditional_expr
+def _setParseConditionalExpr(tokens, initalNode):
+    ParenNode = ASTNode("()")
+
+    conditional_expr = _parseMultipleConditonalExprs(tokens, ParenNode)
+
+    initalNode.add_child(conditional_expr)
+
+    initalNode = _parseStmtInBrackets(tokens, initalNode)
+
+    return initalNode
+
+#Used to parse the multiple conditional exprs within the parenns of an if or while statement
+#conditional_exprs -> conditional_expr && conditional_expr | conditional_expr || conditional_expr | conditional_expr
+def _parseMultipleConditonalExprs(tokens, keywordNode):
     global index
-    errormsg = 'Error: Invalid if statement'
+    global scope
+    
+    relOpNode = _parseConditionalExpr(tokens)
+
+    if tokens[str(index)][cc.TOKEN_INDEX] == '&&' or tokens[str(index)][cc.TOKEN_INDEX] == '||': #Checking to see if there are multiple conditional exprs
+        logicOP = tokens[str(index)][cc.TOKEN_INDEX]
+        logicOPNode = ASTNode(logicOP)
+        logicOPNode.add_child(relOpNode)
+
+        index += 1
+
+        logicOPNode = _parseMultipleConditonalExprs(tokens, logicOPNode)
+        keywordNode.add_child(logicOPNode)
+
+        return keywordNode
+    
+    elif tokens[str(index)][cc.TOKEN_INDEX] == ')':
+        index += 1
+        keywordNode.add_child(relOpNode)
+        return keywordNode
+    
+    _customError("Error: Invalid conditional", tokens, index)
+                        
+#Used to parsse the conditional expr inside statements
+#ifstmt -> if (conditional_expr) {stmtList}
+#whilestmt -> while (conditional_expr) {stmtList}
+#conditional_expr -> expr relop expr
+def _parseConditionalExpr(tokens):
+    global index
+    global scope
+    errormsg = 'Error: Invalid Conditional, incorrect syntax'
+
     expr = _parseExpr(tokens)
 
     if expr != None:
         if re.match(grammar['Relop'][0], tokens[str(index)][cc.TOKEN_INDEX]):
-            if_expr = ASTNode('if')
-            bracketNode = _parseConditionalExpr(tokens, expr)
-            if_expr.add_child(bracketNode)
-            if_expr = _parseStmtInBrackets(tokens, if_expr)
-            return if_expr
-                            
-        else: #Only if it is just a number
-            return expr
-    
-    _customError(errormsg, tokens, index)
-
-#Used to parse the if expr within the parens of an if stmt
-#ifstmt -> if (conditional_expr) {stmtList}
-#whilestmt -> while (conditional_expr) {stmtList}
-def _parseConditionalExpr(tokens, expr):
-    global index
-    global scope
-
-    relOp = tokens[str(index)][cc.TOKEN_INDEX]
-    index += 1
-    second_expr = _parseExpr(tokens)
-
-    errormsg = 'Error: Invalid if statement, expected a variable or number after the relop'
-
-    if second_expr != None:
-        errormsg = 'Error: Invalid if statement, expected a \')\''
-
-        if tokens[str(index)][cc.TOKEN_INDEX] == ')':
+            relOp = tokens[str(index)][cc.TOKEN_INDEX]
             index += 1
+            second_expr = _parseExpr(tokens)
 
-            bracket_Node = ASTNode('( )') #We want to add our bracket node to our if_expr, then within it show the expression
-            bracket_Node.add_child(expr)
-            bracket_Node.add_child(ASTNode(relOp))
-            bracket_Node.add_child(second_expr)
-            return bracket_Node
+            errormsg = 'Error: Invalid if statement, expected a variable or number after the relop'
 
+            if second_expr != None:
+                errormsg = 'Error: Invalid if statement, expected a \')\''
+
+                relOpNode = ASTNode(relOp)
+                relOpNode.add_child(expr)
+                relOpNode.add_child(second_expr)
+                return relOpNode
+
+    
     _customError(errormsg, tokens, index)
 
 #Used to parse the stmts within the brackets of an if stmt
