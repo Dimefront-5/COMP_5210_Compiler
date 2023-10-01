@@ -427,7 +427,12 @@ def _parsingtheRestofLocalDecl(tokens, typeModifier):
         typeModifier = declType#Change the first declType to the typeModifier, since it appeared this second type
         declType = tokens[str(index)][cc.TOKEN_INDEX]
         local_decl = ASTNode(declType)
-        index +=1
+        index += 1
+
+    if tokens[str(index)][cc.TOKEN_INDEX] == '*':#We want to check for a pointer
+        declType += tokens[str(index)][cc.TOKEN_INDEX]
+        local_decl = ASTNode(declType)
+        index += 1
 
     if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
         declId = tokens[str(index)][cc.TOKEN_INDEX]
@@ -459,13 +464,23 @@ def _parsingtheRestofLocalDecl(tokens, typeModifier):
 def _parseEndofDecl(tokens, local_decl, declType, declId):
     global index
     global scope
-    
+    memoryNode = None
     if tokens[str(index)][cc.TOKEN_INDEX] == '=':
         index += 1
+        
+        if tokens[str(index)][cc.TOKEN_INDEX] == '&':
+            memoryNode = ASTNode('&')
+            index += 1
+
         first_number_index = index
+
         exprNode = _parseExpr(tokens)
 
         if exprNode != None: #If it isn't none, it is a number/expression that results in a number
+            if memoryNode != None:#Is this a memory address using the &?
+                memoryNode.add_child(exprNode)
+                exprNode = memoryNode
+
             local_decl = _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode, first_number_index) # A lot we are passing in, but I think this is better than creating a list to pass in
             return local_decl
             

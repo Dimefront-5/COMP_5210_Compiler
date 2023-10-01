@@ -6,6 +6,12 @@ int help() {
 }
 
 int choice () {
+    int *temp = 2;
+    float j = 5/6;
+
+    temp = 5;
+    temp = &j;
+    
     if (5 *2 + (7*8) == 0 || 5 + 6 == 0 && 5 == 6) {
         return 0;
         return 1;

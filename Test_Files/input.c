@@ -9,7 +9,7 @@ int main() {
     int num1 = 42;
     double num2 = 3.14;
     char ch='\A';
-    //void *ptr = NULL;
+    int *ptr = 5;
     float long _num3 = 0.0;
     unsigned short num4 = 0;
     short int __asfoi = 4;
@@ -17,6 +17,8 @@ int main() {
     long long hello=0x123456789ABCDE;
 
     int i = 10 *2 + 3 / 4 - 5 % 6;
+
+    ptr = &num1;
 
     ch='B';
 
