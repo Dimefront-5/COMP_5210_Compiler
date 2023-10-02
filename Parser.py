@@ -23,8 +23,9 @@ grammar = {
     'Arg': ['Type id', ''], #No tpye modifier and type for args
 
     'Local_Decls': ['Local_Decl', 'Local_Decl Local_Decls'],
-    'Local_Decl': ['TypeModifier Type id;', 'TypeModifier Type id = EndOfDecl;',''],#This also turns into just type id = endofDecl; or type id; Since typemodifier can be empty
-
+    'Local_Decl': ['TypeModifier (*)Type id;', 'TypeModifier Type (*)id = EndOfDecl;',''],#This also turns into just type id = endofDecl; or type id; Since typemodifier can be empty
+        #The (*) means that it can be optional
+        
     'StmtList': ['Stmt', 'Stmt StmtList'],
     'Stmt': ['ReturnStmt', 'AssignStmt', 'WhileStmt', 'IfStmt', 'FunctionCall' ,''],
 
