@@ -41,7 +41,7 @@ char choice2 (int i, char c) {
 /*
 Hello, this is the main function of our dummy program.
 */
-int main (int a, char b, float d) { //I am checking to see if our comment remover will work with this so we can parse this correctly
+int main (int a, char b, float d, int z) { //I am checking to see if our comment remover will work with this so we can parse this correctly
 
     //TEMP
     int temp = 5;
