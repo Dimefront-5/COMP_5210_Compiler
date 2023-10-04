@@ -24,6 +24,15 @@ int choice () {
 
 char choice2 (int i, char c) {
     while (i < 10) {
+        if ( i == 0){
+            return 'c';
+
+        }
+        else {
+            while (i < 5) {
+                return 'g';
+            }
+        }
         i = i + 1;
     }
     return 'c';

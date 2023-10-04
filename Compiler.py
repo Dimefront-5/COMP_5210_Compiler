@@ -5,11 +5,12 @@
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
 - ***WORK IN PROGRESS***
-- Finished: Tokenizer, expr Parser
+- Finished: Tokenizer, Parser
 '''
 
 import Tokenizer as tk
 import Parser as ps
+import ASTto3addrcode as a3
 import CompilerConstants as cc
 
 import argparse
@@ -36,30 +37,14 @@ def main():
 
     parsetree, symbolTable = ps.parser(tokens)
 
+    threeAddressCode = a3.converter(parsetree, symbolTable)
+
     if error_output != "":
         print("Errors found in ", possibleInputFile, ":\n\n")
         print(error_output)
         sys.exit()
 
-    if args.t:
-        print(output_for_tokens)
-
-    if args.p:
-        if parsetree == None:
-           print("Errors found in ", possibleInputFile, ":")
-           print("\tSyntax Error\n\n")
-           sys.exit()
-        else:
-            print(parsetree)
-
-    if args.s:
-        if symbolTable == None:
-            print("Errors found in ", possibleInputFile, ":")
-            print("\tSyntax Error\n\n")
-            sys.exit()
-        else:
-            print(symbolTable)
-
+    _printingOutput(args, output_for_tokens, parsetree, symbolTable, threeAddressCode, possibleInputFile)
 
 #------ Inward Facing modules
 
@@ -75,6 +60,8 @@ def _commandLineParser():
     parser.add_argument('-p', action="store_true", help='outputs a parse tree of the input file')
 
     parser.add_argument('-s', action="store_true", help='outputs a symbol table of the input file')
+
+    parser.add_argument('-a', action="store_true", help='outputs the three address code of the input file')
 
     args = parser.parse_args()
 
@@ -129,6 +116,35 @@ def _removingCommentsFromDictionary(dictionary):
             newIndex += 1
 
     return newDictionary
+
+
+def _printingOutput(args, output_for_tokens, parsetree, symbolTable, threeAddressCode, possibleInputFile):
+    if args.t:
+        print(output_for_tokens)
+
+    if args.p:
+        if parsetree == None:
+           print("Errors found in ", possibleInputFile, ":")
+           print("\tSyntax Error\n\n")
+           sys.exit()
+        else:
+            print(parsetree)
+
+    if args.s:
+        if symbolTable == None:
+            print("Errors found in ", possibleInputFile, ":")
+            print("\tSyntax Error\n\n")
+            sys.exit()
+        else:
+            print(symbolTable)
+
+    if args.a:
+        if threeAddressCode == None:
+            print("Errors found in ", possibleInputFile, ":")
+            print("\tSyntax Error\n\n")
+            sys.exit()
+        else:
+            print(threeAddressCode)
 
 if __name__ == "__main__":
     main()

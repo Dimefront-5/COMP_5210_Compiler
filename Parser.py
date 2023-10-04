@@ -1,10 +1,9 @@
 '''
 -@author: Tyler Ray
--@date: 9/29/2023
+-@date: 10/3/2023
 
 - Will parse through our token list and output a AST along with a symbol table
 - Works for the below grammar
-- ***WORK IN PROGRESS***
 '''
 import CompilerConstants as cc
 from anytree import RenderTree #Our fancy printing with AST
@@ -129,14 +128,14 @@ class ASTNode:
     def add_child(self, child_node):
         self.children.append(child_node)
 
-    def reverse_children(self):
-        self.children.reverse()
-
     def __str__(self):
         output = ""
         for pre, fill, node in RenderTree(self):
             output += "%s%s" % (pre, node.value) + "\n"
         return output
+    
+    def _return_children(self):
+        return self.children
     
 
 
