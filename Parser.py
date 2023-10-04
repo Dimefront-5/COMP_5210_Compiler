@@ -134,8 +134,11 @@ class ASTNode:
             output += "%s%s" % (pre, node.value) + "\n"
         return output
     
-    def _return_children(self):
+    def return_children(self):
         return self.children
+    
+    def return_value(self):
+        return self.value
     
 
 

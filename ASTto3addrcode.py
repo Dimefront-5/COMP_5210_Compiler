@@ -14,23 +14,46 @@ global threeAddressCode
 threeAddressCode = {}
 global symbolTable
 
+global labelCounter
+labelCounter = 0
+global functionScope
+functionScope = 'global'
+
 #Our main function
 def converter(AST, SymbolTable):
     global threeAddressCode
     global symbolTable 
+
     symbolTable = SymbolTable
 
-    declList = AST._return_children() #Grabbing the decl list node
+    declList = AST.return_children() #Grabbing the decl list node
 
-    eachDecl = declList[0]._return_children() #Grabbing each individual decleration.
+    eachDecl = declList[0].return_children() #Grabbing each individual decleration.
 
-    _iteratingThroughDecls(eachDecl)
+    _iteratingThroughMainDecls(eachDecl)
 
     return threeAddressCode;
 
 
 #------ Inward Facing modules
 
-def _iteratingThroughDecls(eachDecl):
+def _iteratingThroughMainDecls(eachDecl):
     for decl in eachDecl:
-        print(decl)
+        _iteratingThroughDecl(decl)
+
+def _iteratingThroughDecl(decl):
+    children = decl.return_children()
+    for child in children:
+        childValue = child.return_value()
+        if childValue == 'id':
+            _createFunctionInAddressCode(child)
+
+
+def _createFunctionInAddressCode(idNode):
+    global threeAddressCode
+    global functionScope
+    idName = idNode.return_children()[0]
+    idName = idName.return_value()
+    threeAddressCode[idName] = {}
+    functionScope = idName
+
