@@ -6,6 +6,10 @@
 - ***WORK IN PROGRESS***
 '''
 
+import re
+
+allowedTypes = r'double|int|float|char|string|signed|unsigned|long|short|void'
+typeModifiers = r'signed|unsigned|long|short'
 
 global threeAddressCode
 
@@ -53,6 +57,8 @@ def _iteratingThroughDecl(decl):
             pass
         elif childValue == 'Args':
             _create3AddressCodeForArgs(child)
+        elif childValue == 'local_decls':
+            _create3AddressCodeForLocalDecls(child)
 
 
 def _createFunctionInAddressCode(idNode):
@@ -68,6 +74,7 @@ def _createFunctionInAddressCode(idNode):
 def _create3AddressCodeForArgs(argsNode):
     global threeAddressCode
     global functionScope
+    temporaryDict = {}
 
     args = argsNode.return_children()
 
@@ -77,5 +84,44 @@ def _create3AddressCodeForArgs(argsNode):
             argTypeValue = arg.return_value()
             argIDValue = argID[0].return_value()
 
-            threeAddressCode[functionScope][argIDValue] = ['param', argTypeValue] #We are just going to set the value to param. When we print it out, it will be the param and then the id. But we can't use param as multiple keys
+            temporaryDict[argIDValue] = ['param', argTypeValue] #We are just going to set the value to param. When we print it out, it will be the param and then the id. But we can't use param as multiple keys
 
+    threeAddressCode[functionScope] = dict(reversed(temporaryDict.items())) #Reversing the dictionary so that the order is correct
+
+def  _create3AddressCodeForLocalDecls(localDeclsNode):
+    global threeAddressCode
+    global functionScope
+
+    temporaryDict = {}
+    localDecls = localDeclsNode.return_children()
+
+    for decl in localDecls:
+        _create3AddressCodeForDecl(decl, temporaryDict)
+
+    threeAddressCode[functionScope].update(dict(reversed(temporaryDict.items()))) #Reversing the dictionary so that the order is correct
+
+
+def _create3AddressCodeForDecl(declNode, temporaryDict):
+    global threeAddressCode
+    global functionScope
+
+    declChildren = declNode.return_children()
+
+    declID = declNode.return_value()
+
+
+    declValue = ''
+    index = 0
+    for child in declChildren:
+        childValue = child.return_value()
+        if (re.match(allowedTypes, childValue) or re.match(typeModifiers, childValue[:-1]) and index == 0):
+            declType = childValue
+            
+        elif (re.match(allowedTypes, childValue) or re.match(typeModifiers, childValue[:-1]) and index == 1):#Chekcing to see if there is a typemodifier
+            declType += childValue
+            
+        elif child.return_children() == []:#Is it just a literal or a expression?
+            declValue = childValue
+
+    temporaryDict[declID] = ['decl', declType, declValue]
+            
