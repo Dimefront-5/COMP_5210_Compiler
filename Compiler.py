@@ -118,6 +118,10 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
             for child, value in threeAddressCode[children][blockIndicator].items():
                 if value[0] == 'param':
                     output += ' ' * indent + 'param ' + child + '\n'
+
+                elif child == 'return':
+                        output += ' ' * indent + 'return ' + value[0] + '\n'
+                        
                 elif value[1] == 'expr':
                     output += ' ' * indent + child + ' = ' + value[0] + '\n'
                 elif len(value) == 3 and value[2] == 'decl':
@@ -127,6 +131,9 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                         output += ' ' * indent + child + '\n'
                 elif value[1] == 'assign':
                         output += ' ' * indent + child + ' = ' + value[0] + '\n'
+
+                
+
     return output
 
 #Removes comments that are found within our dictionary, and returns a new dictionary without the comments that is ordered correctly

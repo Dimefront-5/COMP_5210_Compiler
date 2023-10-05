@@ -194,11 +194,11 @@ def _create3AddressCodeForStmts(stmtListNode):
     for stmt in stmtListChildren:
         stmtValue = stmt.return_value()
         if stmtValue == 'if':
-            pass
+            _create3AddressCodeForIfStmt(stmt)
         elif stmtValue == 'while':
-            pass
+            _create3AddressCodeForWhileStmt(stmt)
         elif stmtValue == 'return':
-            pass
+            _create3AddressCodeForReturnStmt(stmt)
         else:#It is a identifier.
             _create3AddressCodeForAssignStmt(stmt)
     pass
@@ -210,7 +210,27 @@ def _create3AddressCodeForWhileStmt(whileStmtNode):
     pass
 
 def _create3AddressCodeForReturnStmt(returnStmtNode):
-    pass
+    global threeAddressCode
+    global functionScope
+    global blockIndicator
+
+    temporaryDict = {}
+    returnStmtChildren = returnStmtNode.return_children()
+
+    child = returnStmtChildren[0]
+
+    if child.return_children() != []:
+        exprDict = {}
+        exprDict, temporaryvariableName = _create3AddressCodeForExpr(child, exprDict)
+        declValue = temporaryvariableName
+        temporaryDict.update(exprDict)
+        temporaryDict['return'] = [declValue]
+        
+    else:
+        declValue = child.return_value()
+        temporaryDict['return'] = [declValue]
+
+    threeAddressCode[functionScope][blockIndicator].update(temporaryDict) 
 
 def _create3AddressCodeForAssignStmt(assignStmtNode):
     global threeAddressCode
@@ -223,14 +243,17 @@ def _create3AddressCodeForAssignStmt(assignStmtNode):
 
     child = assignStmtChildren[0]
     if child.return_children() != []:
+        threeAddressCode[functionScope][blockIndicator].pop(declID) #Since the variable has already been declared here, we wan to remove it so when we update the dictionary it doesn't update that to the decleration position
+       
         exprDict = {}
         exprDict, temporaryvariableName = _create3AddressCodeForExpr(child, exprDict)
         declValue = temporaryvariableName
+        temporaryDict.update(exprDict)
         temporaryDict[declID] = [declValue, 'assign']
-        temporaryDict.update(dict(reversed(exprDict.items())))
+        
     else:
         declValue = child.return_value()
         temporaryDict[declID] = [declValue, 'assign']
-
-    threeAddressCode[functionScope][blockIndicator].update(temporaryDict) #Reversing the dictionary so that the order is correct
+   
+    threeAddressCode[functionScope][blockIndicator].update(temporaryDict)
     
