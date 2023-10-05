@@ -19,11 +19,15 @@ global threeAddressCode
 threeAddressCode = {} 
 global symbolTable
 
-global labelCounter
-labelCounter = 0
+global temporaryIndexCounter
+temporaryIndexCounter = 0
 
 global functionScope
 functionScope = 'global'
+
+global blockIndicator
+blockIndicator = None
+
 
 #Our main function
 def converter(AST, SymbolTable):
@@ -60,17 +64,21 @@ def _iteratingThroughDecl(decl):
             _create3AddressCodeForArgs(child)
         elif childValue == 'local_decls':
             _create3AddressCodeForLocalDecls(child)
+        elif childValue == 'stmtList':
+            _create3AddressCodeForStmts(child)
 
 
 def _createFunctionInAddressCode(idNode):
     global threeAddressCode
     global functionScope
-
+    global blockIndicator
     idName = idNode.return_children()[0]
     idName = idName.return_value()
 
     threeAddressCode[idName] = {}
     functionScope = idName
+    blockIndicator = 'L0'
+
 
 def _create3AddressCodeForArgs(argsNode):
     global threeAddressCode
@@ -87,7 +95,7 @@ def _create3AddressCodeForArgs(argsNode):
 
             temporaryDict[argIDValue] = ['param', argTypeValue] #We are just going to set the value to param. When we print it out, it will be the param and then the id. But we can't use param as multiple keys
 
-    threeAddressCode[functionScope] = dict(reversed(temporaryDict.items())) #Reversing the dictionary so that the order is correct
+    threeAddressCode[functionScope][blockIndicator] = dict(reversed(temporaryDict.items())) #Reversing the dictionary so that the order is correct
 
 def  _create3AddressCodeForLocalDecls(localDeclsNode):
     global threeAddressCode
@@ -99,7 +107,7 @@ def  _create3AddressCodeForLocalDecls(localDeclsNode):
     for decl in localDecls:
        _create3AddressCodeForDecl(decl, temporaryDict)
 
-    threeAddressCode[functionScope].update(dict(reversed(temporaryDict.items()))) #Reversing the dictionary so that the order is correct
+    threeAddressCode[functionScope][blockIndicator].update(dict(reversed(temporaryDict.items()))) #Reversing the dictionary so that the order is correct
 
 
 def _create3AddressCodeForDecl(declNode, temporaryDict):
@@ -175,8 +183,54 @@ def _create3AddressCodeForExpr(exprNode, temporaryDict):
 
 #Creates temporary variable names for the 3 address code
 def _createTemporaryVariableName():
-    global labelCounter
-    labelCounter += 1
-    return 't' + str(labelCounter)
+    global temporaryIndexCounter
+    temporaryIndexCounter += 1
+    return 't' + str(temporaryIndexCounter)
 
-            
+
+def _create3AddressCodeForStmts(stmtListNode):
+    stmtListChildren = stmtListNode.return_children()
+
+    for stmt in stmtListChildren:
+        stmtValue = stmt.return_value()
+        if stmtValue == 'if':
+            pass
+        elif stmtValue == 'while':
+            pass
+        elif stmtValue == 'return':
+            pass
+        else:#It is a identifier.
+            _create3AddressCodeForAssignStmt(stmt)
+    pass
+
+def _create3AddressCodeForIfStmt(ifStmtNode):
+    pass
+
+def _create3AddressCodeForWhileStmt(whileStmtNode):
+    pass
+
+def _create3AddressCodeForReturnStmt(returnStmtNode):
+    pass
+
+def _create3AddressCodeForAssignStmt(assignStmtNode):
+    global threeAddressCode
+    global functionScope
+    global blockIndicator
+
+    temporaryDict = {}
+    assignStmtChildren = assignStmtNode.return_children()
+    declID = assignStmtNode.return_value()
+
+    child = assignStmtChildren[0]
+    if child.return_children() != []:
+        exprDict = {}
+        exprDict, temporaryvariableName = _create3AddressCodeForExpr(child, exprDict)
+        declValue = temporaryvariableName
+        temporaryDict[declID] = [declValue, 'assign']
+        temporaryDict.update(dict(reversed(exprDict.items())))
+    else:
+        declValue = child.return_value()
+        temporaryDict[declID] = [declValue, 'assign']
+
+    threeAddressCode[functionScope][blockIndicator].update(temporaryDict) #Reversing the dictionary so that the order is correct
+    
