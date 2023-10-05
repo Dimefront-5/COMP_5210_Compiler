@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 10/3/2023
+-@date: 10/5/2023
 
 - Will take a given AST and convert it to 3 address code
 - ***WORK IN PROGRESS***
@@ -127,18 +127,17 @@ def _create3AddressCodeForDecl(declNode, temporaryDict):
             exprDict = {}
             exprDict, temporaryvariableName = _create3AddressCodeForExpr(child, exprDict)
             declValue = temporaryvariableName
-            temporaryDict[declID] = ['decl', declType, declValue]
+            temporaryDict[declID] = [declValue, declType, 'decl']
             temporaryDict.update(dict(reversed(exprDict.items())))
 
         index += 1
 
-    temporaryDict[declID] = ['decl', declType, declValue]
+    temporaryDict[declID] = [declValue, declType, 'decl']
 
 #Creates the 3 address code for expressions
 def _create3AddressCodeForExpr(exprNode, temporaryDict):
     global threeAddressCode
     global functionScope
-
     exprChildren = exprNode.return_children()
     index = 0
     second_exprValue = None
@@ -168,7 +167,9 @@ def _create3AddressCodeForExpr(exprNode, temporaryDict):
 
     operation = exprNode.return_value()
 
-    temporaryDict[temporaryvariableName] = ['expr', first_exprValue, operation, second_exprValue]
+    expr_string = first_exprValue + ' ' + operation + ' ' + second_exprValue
+
+    temporaryDict[temporaryvariableName] = [expr_string, 'expr']
 
     return temporaryDict, temporaryvariableName
 

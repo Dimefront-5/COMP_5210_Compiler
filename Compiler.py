@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 9/24/2023
+-@date: 10/5/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
@@ -106,6 +106,24 @@ def _tokenOutputFormatter(tokens):
 
     return output, errorOutput
 
+def _creatingOutputFor3AddressCode(threeAddressCode):
+    indent = 0
+    output = ''
+    for children in threeAddressCode:
+        output += children + ':\n'
+        indent = 3
+        for child, value in threeAddressCode[children].items():
+            if value[0] == 'param':
+                output += ' ' * indent + 'param ' + child + '\n'
+            elif value[1] == 'expr':
+                output += ' ' * indent + child + ' = ' + value[0] + '\n'
+            elif len(value) == 3 and value[2] == 'decl':
+                if value[0] != '':
+                    output += ' ' * indent + child + ' = ' + value[0] + '\n'
+                else: 
+                    output += ' ' * indent + child + '\n'
+    return output
+
 #Removes comments that are found within our dictionary, and returns a new dictionary without the comments that is ordered correctly
 def _removingCommentsFromDictionary(dictionary):
     newIndex = 0
@@ -144,7 +162,8 @@ def _printingOutput(args, output_for_tokens, parsetree, symbolTable, threeAddres
             print("\tSyntax Error\n\n")
             sys.exit()
         else:
-            print(threeAddressCode)
+            output = _creatingOutputFor3AddressCode(threeAddressCode)
+            print(output)
 
 if __name__ == "__main__":
     main()
