@@ -865,6 +865,9 @@ def _parseIfStmt(tokens):
             else_exprNode = _paseElseStmt(tokens)
             if_exprNode.add_child(else_exprNode)
             return if_exprNode
+        
+        else:
+            return if_exprNode
             
 
     _customError("Error: Invalid if statement", tokens, index)
@@ -890,6 +893,7 @@ def _parseMultipleConditonalExprs(tokens, keywordNode):
     global scope
     
     relOpNode = _parseConditionalExpr(tokens)
+
 
     if tokens[str(index)][cc.TOKEN_INDEX] == '&&' or tokens[str(index)][cc.TOKEN_INDEX] == '||': #Checking to see if there are multiple conditional exprs
         logicOP = tokens[str(index)][cc.TOKEN_INDEX]
@@ -920,7 +924,6 @@ def _parseConditionalExpr(tokens):
     errormsg = 'Error: Invalid Conditional, incorrect syntax'
 
     expr = _parseExpr(tokens)
-
     if expr != None:
         if re.match(grammar['Relop'][0], tokens[str(index)][cc.TOKEN_INDEX]):
             relOp = tokens[str(index)][cc.TOKEN_INDEX]

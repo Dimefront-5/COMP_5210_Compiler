@@ -44,7 +44,7 @@ Hello, this is the main function of our dummy program.
 int main (int a, char b, float d, int z) { //I am checking to see if our comment remover will work with this so we can parse this correctly
 
     //TEMP
-    int temp = 5;
+    int temp = 0;
     int i = 5;
     char c = 'c';
     float j = 32.4;
@@ -55,6 +55,6 @@ int main (int a, char b, float d, int z) { //I am checking to see if our comment
     choice();
     /* Lots of math below
     */
-    hello = k + 5 -7 * 8 / 9 * (8 + 2);
-    return 70 +8;//This will technically be a vlaid return in c, so it is valid in my parser
+    hello = 0 + 5 -7 * 8 / 9 * (8 + 2);
+    return 5;//This will technically be a vlaid return in c, so it is valid in my parser
 }

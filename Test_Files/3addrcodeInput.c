@@ -7,6 +7,12 @@ int main (int a, char b, float d, int z) { //I am checking to see if our comment
     float j = 32.4;
     long int k;
 
+    if (i == 5) {
+        i = 6;
+    } else {
+        i = 7;
+    }
+
     k = 5 + 8 - 9;
     return 6 + 7 - 8;
 }

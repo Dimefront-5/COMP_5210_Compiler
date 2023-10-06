@@ -93,16 +93,6 @@ def _tokenOutputFormatter(tokens):
         output += " - Line Number, Column Number: " + str(tokens[i][cc.LINE_NUMBER_INDEX]) + "," + str(tokens[i][cc.COLUMN_NUMBER_INDEX])
         output += "\n"
 
-        '''
-        A pretty way to print out the tokens that represent the input file. Makes it easier to debug
-        if lineno != tokens[i][2]:
-            output2 += "\n"
-            lineno = tokens[i][2]
-
-        output2 += "\'" + tokens[i][1] + "\' "
-
-    output += "\n\n\n" + output2 + "\n\n\n"
-        '''
 
     return output, errorOutput
 
@@ -111,28 +101,30 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
     output = ''
     for children in threeAddressCode:
         output += children + ':\n'
-        indent = 3
         for blockIndicator in threeAddressCode[children]:
+            indent = 3
             output += ' ' * indent + blockIndicator + ':\n'
             indent += 3
             for child, value in threeAddressCode[children][blockIndicator].items():
-                if value[0] == 'param':
-                    output += ' ' * indent + 'param ' + child + '\n'
+                if value[1] == 'param':
+                    output += ' ' * indent + 'param ' + value[0] + '\n'
 
-                elif child == 'return':
+                elif value[1] == 'return':
                         output += ' ' * indent + 'return ' + value[0] + '\n'
                         
                 elif value[1] == 'expr':
-                    output += ' ' * indent + child + ' = ' + value[0] + '\n'
-                elif len(value) == 3 and value[2] == 'decl':
-                    if value[0] != '':
-                        output += ' ' * indent + child + ' = ' + value[0] + '\n'
-                    else: 
-                        output += ' ' * indent + child + '\n'
-                elif value[1] == 'assign':
-                        output += ' ' * indent + child + ' = ' + value[0] + '\n'
+                    output += ' ' * indent + value[0] + '\n'
 
-                
+                elif value[0] == 'if':
+                    output += ' ' * indent + 'if (' + value[1]  + ' ' + value[2] + ' ' + value[3] + ') ' + value[4] + '\n'
+
+                elif len(value) == 4 and value[3] == 'decl':
+                    if value[1] != '':
+                        output += ' ' * indent + value[0] + ' = ' + value[1] + '\n'
+                    else: 
+                        output += ' ' * indent + value[0] + '\n'
+                elif value[2] == 'assign':
+                    output += ' ' * indent + value[0] + ' = ' + value[1] + '\n'
 
     return output
 
