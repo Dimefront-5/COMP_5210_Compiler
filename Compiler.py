@@ -100,31 +100,40 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
     indent = 0
     output = ''
     for children in threeAddressCode:
-        output += children + ':\n'
-        for blockIndicator in threeAddressCode[children]:
-            indent = 3
-            output += ' ' * indent + blockIndicator + ':\n'
-            indent += 3
-            for child, value in threeAddressCode[children][blockIndicator].items():
-                if value[1] == 'param':
-                    output += ' ' * indent + 'param ' + value[0] + '\n'
+        if isinstance(threeAddressCode[children], dict):
+            output += children + ':\n'
+            for blockIndicator in threeAddressCode[children]:
+                indent = 3
+                output += ' ' * indent + blockIndicator + ':\n'
+                indent += 3
+                for child, value in threeAddressCode[children][blockIndicator].items():
+                    if value[1] == 'param':
+                        output += ' ' * indent + 'param ' + value[0] + '\n'
 
-                elif value[1] == 'return':
-                        output += ' ' * indent + 'return ' + value[0] + '\n'
-                        
-                elif value[1] == 'expr':
-                    output += ' ' * indent + value[0] + '\n'
-
-                elif value[0] == 'if':
-                    output += ' ' * indent + 'if (' + value[1]  + ' ' + value[2] + ' ' + value[3] + ') ' + value[4] + '\n'
-
-                elif len(value) == 4 and value[3] == 'decl':
-                    if value[1] != '':
-                        output += ' ' * indent + value[0] + ' = ' + value[1] + '\n'
-                    else: 
+                    elif value[1] == 'return':
+                            output += ' ' * indent + 'return ' + value[0] + '\n'
+                            
+                    elif value[1] == 'expr':
                         output += ' ' * indent + value[0] + '\n'
-                elif value[2] == 'assign':
-                    output += ' ' * indent + value[0] + ' = ' + value[1] + '\n'
+
+                    elif value[1] == 'goto':
+                        output += ' ' * indent + value[0] + '\n'
+
+                    elif value[0] == 'if':
+                        output += ' ' * indent + 'if (' + value[1]  + ' ' + value[2] + ' ' + value[3] + ') ' + value[4] + '\n'
+
+                    elif len(value) == 4 and value[3] == 'decl':
+                        if value[1] != '':
+                            output += ' ' * indent + value[0] + ' = ' + value[1] + '\n'
+                        else: 
+                            output += ' ' * indent + value[0] + '\n'
+                    elif value[2] == 'functionCall':
+                        output += ' ' * indent + value[0] + '(' + str(value[1]) + ')\n'
+
+                    elif value[2] == 'assign':
+                        output += ' ' * indent + value[0] + ' = ' + value[1] + '\n'
+        else:
+            output += children + ' = ' + threeAddressCode[children] + '\n' 
 
     return output
 

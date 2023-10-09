@@ -14,5 +14,5 @@ int main (int a, char b, float d, int z) { //I am checking to see if our comment
     }
 
     k = 5 + 8 - 9;
-    return 6 + 7 - 8;
+    return k + 7 - 8;
 }
