@@ -5,7 +5,7 @@
 - Will parse through our token list and output a AST along with a symbol table
 - Works for the below grammar
 '''
-import CompilerConstants as cc
+import compilerconstants as cc
 from anytree import RenderTree #Our fancy printing with AST
 import re
 import sys
@@ -364,7 +364,8 @@ def _parseInFunction(tokens, declNode):
     global scope
 
     index += 1
-    local_declsNode = _parseLocalDecls(tokens)
+    local_declsNode = ASTNode("local_decls")
+    local_declsNode = _parseLocalDecls(tokens, local_declsNode)
 
     if local_declsNode != None: #local decls can be nothing, so we don't want to add it if it is nothing
         declNode.add_child(local_declsNode)
@@ -380,7 +381,7 @@ def _parseInFunction(tokens, declNode):
 #Start of local_decls parser ----------------
 
 #local_decls -> local_decl local_decls | local_decl
-def _parseLocalDecls(tokens, local_declsNode = ASTNode("local_decls")):
+def _parseLocalDecls(tokens, local_declsNode):
     local_declsNodechild = _parseALocalDecl(tokens)
 
     if local_declsNodechild == None: # we allowed to have no local_decls

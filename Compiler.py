@@ -8,10 +8,10 @@
 - Finished: Tokenizer, Parser
 '''
 
-import Tokenizer as tk
-import Parser as ps
-import ASTto3addrcode as a3
-import CompilerConstants as cc
+import tokenizer as tk
+import custom_parser as ps
+import astto3addrcode as a3
+import compilerconstants as cc
 
 import argparse
 import sys
@@ -111,7 +111,7 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                         output += ' ' * indent + 'param ' + value[0] + '\n'
 
                     elif value[1] == 'return':
-                            output += ' ' * indent + 'return ' + value[0] + '\n'
+                        output += ' ' * indent + 'return ' + value[0] + '\n'
                             
                     elif value[1] == 'expr':
                         output += ' ' * indent + value[0] + '\n'
@@ -125,8 +125,7 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                     elif len(value) == 4 and value[3] == 'decl':
                         if value[1] != '':
                             output += ' ' * indent + value[0] + ' = ' + value[1] + '\n'
-                        else: 
-                            output += ' ' * indent + value[0] + '\n'
+
                     elif value[2] == 'functionCall':
                         output += ' ' * indent + value[0] + '(' + str(value[1]) + ')\n'
 
