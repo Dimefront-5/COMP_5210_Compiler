@@ -57,7 +57,7 @@ def _commandLineParser():
 
     parser.add_argument('-t', action="store_true", help='outputs a tokenized version of the input file')
 
-    parser.add_argument('-p', action="store_true", help='outputs a parse tree of the input file')
+    parser.add_argument('-p', action="store_true", help='outputs a abstract syntax tree of the input file')
 
     parser.add_argument('-s', action="store_true", help='outputs a symbol table of the input file')
 
