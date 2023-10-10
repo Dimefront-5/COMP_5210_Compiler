@@ -1,9 +1,8 @@
 '''
 -@author: Tyler Ray
--@date: 10/5/2023
+-@date: 10/10/2023
 
 - Will take a given AST and convert it to 3 address code
-- ***WORK IN PROGRESS***
 '''
 
 import re
@@ -50,10 +49,12 @@ def converter(AST, SymbolTable):
 
 #------ Inward Facing modules
 
+#Iterates through the main declerations or a program
 def _iteratingThroughMainDecls(eachDecl):
     for decl in eachDecl:
         _iteratingThroughDecl(decl)
 
+#Walks through each decl and looks for it's components. 
 def _iteratingThroughDecl(decl):
     global threeAddressCode
     global functionScope
@@ -65,17 +66,18 @@ def _iteratingThroughDecl(decl):
 
         if childValue == 'id':
             _createFunctionInAddressCode(child)
-        elif childValue == 'type':
+        elif childValue == 'type': #we don't care about the type for 3 address code
             pass
-        elif childValue == 'Args':
+        elif childValue == 'Args': #We don't care about the args for 3 address code, we have already checked that they exist in our parser.
             pass
         elif childValue == 'local_decls':
             threeAddressCode[functionScope][blockIndicator] = {}
             _create3AddressCodeForLocalDecls(child)
+
         elif childValue == 'stmtList':
             _create3AddressCodeForStmts(child)
 
-
+#creates our representation of a function within the 3 address code
 def _createFunctionInAddressCode(idNode):
     global threeAddressCode
     global functionScope
@@ -84,15 +86,16 @@ def _createFunctionInAddressCode(idNode):
     idName = idNode.return_children()[0]
     idName = idName.return_value()
 
-    if len(idNode.return_children()) > 1:
+    if len(idNode.return_children()) > 1: #If the decleration is a variable, we only have the value returned.
         threeAddressCode[idName] = idNode.return_children()[1].return_value()
-    else:
+    else:#Is it a function?
         threeAddressCode[idName] = {}
         functionScope = idName
         blockIndicator = 'L0'
         threeAddressCode[functionScope][blockIndicator] = {}
 
-
+#Not currently used, we are going to ignore the args for now
+'''
 def _create3AddressCodeForArgs(argsNode):
     global threeAddressCode
     global functionScope
@@ -114,8 +117,9 @@ def _create3AddressCodeForArgs(argsNode):
             temporaryDict[addrIndex] = [argIDValue, 'param', argTypeValue] #We are just going to set the value to param. When we print it out, it will be the param and then the id. But we can't use param as multiple keys
             addrIndex += 1
 
-    threeAddressCode[functionScope][blockIndicator] = temporaryDict
+    threeAddressCode[functionScope][blockIndicator] = temporaryDict'''
 
+#Walks through each local decl
 def  _create3AddressCodeForLocalDecls(localDeclsNode):
     global threeAddressCode
     global functionScope
@@ -132,7 +136,7 @@ def  _create3AddressCodeForLocalDecls(localDeclsNode):
 
     threeAddressCode[functionScope][blockIndicator].update(temporaryDict)
 
-
+#Will create 3 address code for a decl depending on what it is
 def _create3AddressCodeForDecl(declNode, temporaryDict):
     global threeAddressCode
     global functionScope
@@ -145,10 +149,11 @@ def _create3AddressCodeForDecl(declNode, temporaryDict):
 
     declValue = ''
     index = 0
+
     for child in declChildren:
         childValue = child.return_value()
 
-        if (re.match(allowedTypes, childValue) or re.match(typeModifiers, childValue[:-1])) and index == 0:
+        if (re.match(allowedTypes, childValue) or re.match(typeModifiers, childValue[:-1])) and index == 0:#Checking for types
             declType = childValue
             
         elif (re.match(allowedTypes, childValue) or re.match(typeModifiers, childValue[:-1])) and index == 1:#Chekcing to see if there is a typemodifier
@@ -156,13 +161,13 @@ def _create3AddressCodeForDecl(declNode, temporaryDict):
             
         elif child.return_children() == []:#Is it just a literal or a expression?
             declValue = childValue
-        else:
+        else:#is our decl value an expression?
             exprDict = {}
             exprDict, temporaryvariableName = _create3AddressCodeForExpr(child, exprDict)
             declValue = temporaryvariableName
             temporaryDict.update(exprDict)
 
-            keys = sorted(temporaryDict.keys())
+            keys = sorted(temporaryDict.keys())#we want to sort our temporary dict so it appears in order for the 3address code.
             values = {key: temporaryDict[key] for key in keys}
             temporaryDict = values
 
@@ -180,6 +185,8 @@ def _create3AddressCodeForExpr(exprNode, temporaryDict):
     global addrIndex
 
     exprChildren = exprNode.return_children()
+
+    #We are going to iterate through and since we want to preserve order of how the expressions appear, we keep track of what index the node is at.
     index = 0
     second_exprValue = None
     first_exprValue = None
@@ -189,13 +196,13 @@ def _create3AddressCodeForExpr(exprNode, temporaryDict):
 
     for child in exprChildren:
         childValue = child.return_value()
-        if (re.match(exprOps, childValue) or childValue == '()') and index == 0:
+        if (re.match(exprOps, childValue) or childValue == '()') and index == 0: #is the next child an expression?
             temporaryDict, temporaryvariableName1 = _create3AddressCodeForExpr(child, temporaryDict)
         
         elif (re.match(exprOps, childValue) or childValue == '()') and index == 1:
             temporaryDict, temporaryvariableName2 = _create3AddressCodeForExpr(child, temporaryDict)
 
-        elif child.return_children() == [] and index == 0:
+        elif child.return_children() == [] and index == 0:#Is it a literal?
             first_exprValue = childValue
 
         elif child.return_children() == [] and index == 1:
@@ -204,7 +211,15 @@ def _create3AddressCodeForExpr(exprNode, temporaryDict):
         index += 1
 
     
-    if exprNode.return_value() != '()':
+    temporaryDict, temporaryvariableName = _piecingTogetherExpressionCorrectly(exprNode, temporaryDict, second_exprValue, first_exprValue, temporaryvariableName1, temporaryvariableName2)
+    
+    return temporaryDict, temporaryvariableName
+
+def _piecingTogetherExpressionCorrectly(exprNode, temporaryDict, second_exprValue, first_exprValue, temporaryvariableName1, temporaryvariableName2):
+    global addrIndex
+    
+    #We want to preserve the order so are making sure each value has something in it.
+    if exprNode.return_value() != '()':#For parens, we want to do something different, since it will have different children
         if second_exprValue == None and first_exprValue == None:
             second_exprValue = temporaryvariableName1
             first_exprValue = temporaryvariableName2
@@ -224,14 +239,13 @@ def _create3AddressCodeForExpr(exprNode, temporaryDict):
     temporaryvariableName = _createTemporaryVariableName()
 
     operation = exprNode.return_value()
-
-    if second_exprValue == None and first_exprValue == None:
-        if temporaryvariableName1 == None:
-            first_exprValue = temporaryvariableName2
-        else:
-            first_exprValue = temporaryvariableName1
     
     if operation == '()':
+        if second_exprValue == None and first_exprValue == None: #Want to make sure first_exprValue has something in it.
+            if temporaryvariableName1 == None:
+                first_exprValue = temporaryvariableName2
+            else:
+                first_exprValue = temporaryvariableName1
         expr_string = '(' + first_exprValue + ')'
     else:
         expr_string = first_exprValue + ' ' + operation + ' ' + second_exprValue
@@ -247,7 +261,7 @@ def _createTemporaryVariableName():
     temporaryIndexCounter += 1
     return 't' + str(temporaryIndexCounter)
 
-
+#Will iterate through stmts and create 3 address code for each stmt
 def _create3AddressCodeForStmts(stmtListNode):
     global threeAddressCode
     stmtListChildren = stmtListNode.return_children()
@@ -264,8 +278,8 @@ def _create3AddressCodeForStmts(stmtListNode):
             _create3AddressCodeForFunctionCall(stmt)
         else:#It is a identifier.
             _create3AddressCodeForAssignStmt(stmt)
-    pass
 
+#Creates 3 address code for if statements
 def _create3AddressCodeForIfStmt(ifStmtNode):
     global threeAddressCode
     global functionScope
@@ -276,44 +290,65 @@ def _create3AddressCodeForIfStmt(ifStmtNode):
 
     for stmt in ifStmtChildren:
         stmtValue = stmt.return_value()
-        if stmtValue == '()':
-            if threeAddressCode[functionScope][blockIndicator] != {}:
+        if stmtValue == '()': #are we looking through the if expression?
+            if threeAddressCode[functionScope][blockIndicator] != {}: #Did the previous block have something in it? If not, we can just overwrite it. and Use it for the if statement. If not, we will create a new block.
                 blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
                 threeAddressCode[functionScope][blockIndicator] = {}
 
             temporaryDict = _create3AddressCodeForstmtParens(stmt)
             index = 0
+
             for val in list(temporaryDict):
                 index += 1
-                if temporaryDict[val][0] != 'if':
+                if temporaryDict[val][0] != 'if':#While we walk through the code, we will be removing ifs that appear when we are evaluating expressions that have || or &&. We only want the final if statement to show up.
                     threeAddressCode[functionScope][blockIndicator][val] = temporaryDict[val]
                 elif index == len(temporaryDict):
                     threeAddressCode[functionScope][blockIndicator][val] = temporaryDict[val]
 
         elif stmtValue == '{ }':
-            stmtListNode = stmt.return_children()[0]
-            blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1) #Adding one to our block indicator
-            threeAddressCode[functionScope][blockIndicator] = {}
-
-            _create3AddressCodeForStmts(stmtListNode)
-
-            blockIndicatorForIfStmts = blockIndicator
-
-            blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1) #Adding one to our block indicator
-            threeAddressCode[functionScope][blockIndicator] = {}
+            blockIndicatorForIfStmts = _create3AddressCodeForBracketsInIf(stmt)
 
         elif stmtValue == 'else':
-            bracketNode = stmt.return_children()[0]
-            stmtListNode = bracketNode.return_children()[0]
+            _create3AddressCodeForElseStmt(stmt, blockIndicatorForIfStmts)
 
-            threeAddressCode[functionScope][blockIndicator] = {}
-            _create3AddressCodeForStmts(stmtListNode)
+#Creates 3 address code for else statements
+def _create3AddressCodeForElseStmt(stmt, blockIndicatorForIfStmts):
+    global threeAddressCode
+    global functionScope
+    global blockIndicator
+    global addrIndex
 
-            threeAddressCode[functionScope][blockIndicatorForIfStmts][addrIndex] = ['goto L' + str(int(blockIndicator[1:]) + 1), "goto"]
+    bracketNode = stmt.return_children()[0]
+    stmtListNode = bracketNode.return_children()[0]
 
-            blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
-            threeAddressCode[functionScope][blockIndicator] = {}
+    threeAddressCode[functionScope][blockIndicator] = {}
+    _create3AddressCodeForStmts(stmtListNode)
 
+    threeAddressCode[functionScope][blockIndicatorForIfStmts][addrIndex] = ['goto L' + str(int(blockIndicator[1:]) + 1), "goto"]
+
+    blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
+    threeAddressCode[functionScope][blockIndicator] = {}
+
+#Creates 3 address code for brackets in if statements
+def _create3AddressCodeForBracketsInIf(stmt):
+    global threeAddressCode
+    global functionScope
+    global blockIndicator
+    global addrIndex
+
+    stmtListNode = stmt.return_children()[0]
+    blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1) #Adding one to our block indicator
+    threeAddressCode[functionScope][blockIndicator] = {}
+
+    _create3AddressCodeForStmts(stmtListNode)
+
+    blockIndicatorForIfStmts = blockIndicator
+
+    blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1) #Adding one to our block indicator
+    threeAddressCode[functionScope][blockIndicator] = {}
+    return blockIndicatorForIfStmts
+
+#Creates 3 address code for the expression in the if statement
 def _create3AddressCodeForstmtParens(parenNode):
     global threeAddressCode
     global functionScope
@@ -332,32 +367,13 @@ def _create3AddressCodeForstmtParens(parenNode):
         elif operatorValue == '||' or operatorValue == '&&':
             temporaryDict = _create3AddressCodeForstmtParens(operator)
             temporaryDict = _create3AddrForMultipleRelOps(temporaryDict)
-            temporaryDict[addrIndex] = ['if', temporaryDict[addrIndex - 2][0], operatorValue, temporaryDict[addrIndex - 1][0], temporaryDict[addrIndex-3][4]]
+            temporaryDict[addrIndex] = ['if', temporaryDict[addrIndex - 2][0], operatorValue, temporaryDict[addrIndex - 1][0], temporaryDict[addrIndex-3][4]]#creating a if statement for each expression.
 
             addrIndex += 1
 
     return temporaryDict        
 
-#We are removing the previous to if statements. This is allowed when there is only one if, but if we have a relop we want to get rid of them
-def _cleaningUpDict(temporaryDict):
-    global addrIndex
-    temporaryIndex = addrIndex
-    for val in list(temporaryDict):
-        if temporaryDict[val][0] == 'if' and val != temporaryIndex:
-            temporaryDict.pop(val)
-            addrIndex -= 1
-    temporaryDict = _renumberingDict(temporaryDict)
-    return temporaryDict
-
-def _renumberingDict(temporaryDict):
-    global addrIndex
-    keys = list(temporaryDict.keys())
-    for i in range(len(keys)):
-        if keys[i] != i:
-            temporaryDict[i] = temporaryDict.pop(keys[i])
-    addrIndex = len(temporaryDict) -1
-    return temporaryDict
-
+#Creates 3 address code for multiple relational operators
 def _create3AddrForMultipleRelOps(temporaryDict):
     global threeAddressCode
     global functionScope
@@ -372,6 +388,7 @@ def _create3AddrForMultipleRelOps(temporaryDict):
 
     return temporaryDict
 
+#Parsing both sides of a relative operator
 def _parseRelOpSides(operator):
     global threeAddressCode
     global functionScope
@@ -385,7 +402,7 @@ def _parseRelOpSides(operator):
     firstExpr = None
 
     for child in operatorChildren:
-        if child.return_children() != []:
+        if child.return_children() != []: #Is it an expression?
             exprDict = {}
             exprDict, temporaryvariableName = _create3AddressCodeForExpr(child, exprDict)
             if index == 0:
@@ -406,7 +423,7 @@ def _parseRelOpSides(operator):
 
     return temporaryDict
 
-
+#Creates 3 address code for while statements
 def _create3AddressCodeForWhileStmt(whileStmtNode):
     global threeAddressCode
     global functionScope
@@ -419,42 +436,54 @@ def _create3AddressCodeForWhileStmt(whileStmtNode):
         childValue = child.return_value()
 
         if childValue == '()':
-            if threeAddressCode[functionScope][blockIndicator] != {}:
+            if threeAddressCode[functionScope][blockIndicator] != {}:#Same as if statement with checking if the previous block had something in it.
                 blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
                 threeAddressCode[functionScope][blockIndicator] = {}
 
             temporaryDict = _create3AddressCodeForstmtParens(child)
+
             for val in list(temporaryDict):
                 if temporaryDict[val][0] != 'if':
                     threeAddressCode[functionScope][blockIndicator].update(temporaryDict[val])
+
                 else:
-                    addrIndexForWhile = addrIndex-1
-                    blockAddressForWhile = blockIndicator
+                    addrIndexForWhile = addrIndex-1#We want to know what the address index is for the if statement. We will use this to create the goto statement for the while loop.
+                    blockAddressForWhile = blockIndicator #along with block Address
                     threeAddressCode[functionScope][blockIndicator] = {}
                     threeAddressCode[functionScope][blockIndicator][val] = temporaryDict[val]
 
         elif childValue == '{ }':
-            stmtListNode = child.return_children()[0]
+            _creating3AddressCodeForBracketsInWhile(child, addrIndexForWhile, blockAddressForWhile)
 
-            blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
-            threeAddressCode[functionScope][blockIndicator] = {}
+#Will parse through the brackets in a while loop
+def _creating3AddressCodeForBracketsInWhile(child, addrIndexForWhile, blockAddressForWhile):
+    global threeAddressCode
+    global functionScope
+    global blockIndicator
+    global addrIndex
 
-            _create3AddressCodeForStmts(stmtListNode)
+    stmtListNode = child.return_children()[0]
 
-            threeAddressCode[functionScope][blockIndicator][addrIndex] = ['goto L' + blockAddressForWhile[1:], "goto"]
-            addrIndex += 1
+    blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
+    threeAddressCode[functionScope][blockIndicator] = {}
 
-            threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile] = ['if'
+    _create3AddressCodeForStmts(stmtListNode)
+
+    threeAddressCode[functionScope][blockIndicator][addrIndex] = ['goto L' + blockAddressForWhile[1:], "goto"] #For our final stmt in the block. This will return us back to the while if
+    addrIndex += 1
+
+    threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile] = ['if'
                                                                                         ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][1]
                                                                                         ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][2]
                                                                                         ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][3]
-                                                                                        ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][4][0:7] + ', else goto L' + str(int(blockIndicator[1:]) + 1)]
+                                                                                        ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][4][0:7] 
+                                                                                        + ', else goto L' + str(int(blockIndicator[1:]) + 1)] # We are overwriting the previous while statement. This is so the goto will be correct no matter what is within the stmts of the while loop
 
-            blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
-            threeAddressCode[functionScope][blockIndicator] = {}
+    blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
+    threeAddressCode[functionScope][blockIndicator] = {}
 
         
-
+#Creates 3 address code for return statements
 def _create3AddressCodeForReturnStmt(returnStmtNode):
     global threeAddressCode
     global functionScope
@@ -466,7 +495,7 @@ def _create3AddressCodeForReturnStmt(returnStmtNode):
 
     child = returnStmtChildren[0]
 
-    if child.return_children() != []:
+    if child.return_children() != []: #Is the return value a expression?
         exprDict = {}
         exprDict, temporaryvariableName = _create3AddressCodeForExpr(child, exprDict)
         declValue = temporaryvariableName
@@ -481,6 +510,7 @@ def _create3AddressCodeForReturnStmt(returnStmtNode):
 
     threeAddressCode[functionScope][blockIndicator].update(temporaryDict) 
 
+#Creates 3 address code for function calls
 def _create3AddressCodeForFunctionCall(stmtNode):
     global threeAddressCode
     global functionScope
@@ -517,7 +547,7 @@ def _create3AddressCodeForAssignStmt(assignStmtNode):
         temporaryDict[addrIndex] = [declID, declValue, 'assign']
         addrIndex += 1      
     
-    elif child.return_value() == '*' or child.return_value() == '&':
+    elif child.return_value() == '*' or child.return_value() == '&':#Looking for pointers or memory addresses
         secondchild = child.return_children()[0]
         declValue = child.return_value() + secondchild.return_value()
         temporaryDict[addrIndex] = [declID, declValue, 'assign']
@@ -527,8 +557,7 @@ def _create3AddressCodeForAssignStmt(assignStmtNode):
         exprDict, temporaryvariableName = _create3AddressCodeForExpr(child, exprDict)
         declValue = temporaryvariableName
         temporaryDict.update(exprDict)
-        temporaryDict[addrIndex] = [declID, declValue, 'assign']
-        addrIndex += 1
+        temporaryDict[addrIndex-1] = [declID, temporaryDict[addrIndex-1][0][5:], 'assign'] #Want to assign the variable to the previous 3addresscode variable values. Remove the assigned the tempvariable to the permanent variable
         
    
     threeAddressCode[functionScope][blockIndicator].update(temporaryDict)
