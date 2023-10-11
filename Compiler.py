@@ -127,10 +127,15 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                             output += ' ' * indent + value[0] + ' = ' + value[1] + '\n'
 
                     elif value[2] == 'functionCall':
-                        output += ' ' * indent + value[0] + '(' + str(value[1]) + ')\n'
+                        output += ' ' * indent + 'call ' +  value[0] + '(' + str(value[1]) + ')\n'
 
-                    elif value[2] == 'assign':
-                        output += ' ' * indent + value[0] + ' = ' + value[1] + '\n'
+                    elif value[2] == 'assign' or value[4] == 'assign':
+                        if len(value) < 5:
+                            output += ' ' * indent + value[0] + ' = ' + value[1] + '\n'
+                        elif value[2] == '()':
+                            output += ' ' * indent + value[0] + ' = (' + value[1] + ')\n' 
+                        else:
+                            output += ' ' * indent + value[0] + ' = ' + value[1] + ' ' + value[2] + ' ' + value[3] + '\n'
         else:
             output += children + ' = ' + threeAddressCode[children] + '\n' 
 

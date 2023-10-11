@@ -250,7 +250,7 @@ def _piecingTogetherExpressionCorrectly(exprNode, temporaryDict, second_exprValu
     else:
         expr_string = first_exprValue + ' ' + operation + ' ' + second_exprValue
 
-    temporaryDict[addrIndex] = [temporaryvariableName + ' = ' + expr_string, 'expr']
+    temporaryDict[addrIndex] = [temporaryvariableName, first_exprValue, operation, second_exprValue, 'assign']
     addrIndex += 1
 
     return temporaryDict, temporaryvariableName
@@ -291,18 +291,21 @@ def _create3AddressCodeForIfStmt(ifStmtNode):
     for stmt in ifStmtChildren:
         stmtValue = stmt.return_value()
         if stmtValue == '()': #are we looking through the if expression?
-            if threeAddressCode[functionScope][blockIndicator] != {}: #Did the previous block have something in it? If not, we can just overwrite it. and Use it for the if statement. If not, we will create a new block.
-                blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
-                threeAddressCode[functionScope][blockIndicator] = {}
 
             temporaryDict = _create3AddressCodeForstmtParens(stmt)
             index = 0
-
+            
             for val in list(temporaryDict):
                 index += 1
+                #print(threeAddressCode[functionScope][blockIndicator])
                 if temporaryDict[val][0] != 'if':#While we walk through the code, we will be removing ifs that appear when we are evaluating expressions that have || or &&. We only want the final if statement to show up.
                     threeAddressCode[functionScope][blockIndicator][val] = temporaryDict[val]
+
                 elif index == len(temporaryDict):
+                    if threeAddressCode[functionScope][blockIndicator] != {}: #Did the previous block have something in it? If not, we can just overwrite it. and Use it for the if statement. If not, we will create a new block.
+                        blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
+                        threeAddressCode[functionScope][blockIndicator] = {}
+
                     threeAddressCode[functionScope][blockIndicator][val] = temporaryDict[val]
 
         elif stmtValue == '{ }':
@@ -436,17 +439,18 @@ def _create3AddressCodeForWhileStmt(whileStmtNode):
         childValue = child.return_value()
 
         if childValue == '()':
-            if threeAddressCode[functionScope][blockIndicator] != {}:#Same as if statement with checking if the previous block had something in it.
-                blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
-                threeAddressCode[functionScope][blockIndicator] = {}
 
             temporaryDict = _create3AddressCodeForstmtParens(child)
-
             for val in list(temporaryDict):
                 if temporaryDict[val][0] != 'if':
-                    threeAddressCode[functionScope][blockIndicator].update(temporaryDict[val])
+                    threeAddressCode[functionScope][blockIndicator][val] = temporaryDict[val]
+
 
                 else:
+                    if threeAddressCode[functionScope][blockIndicator] != {}:#Same as if statement with checking if the previous block had something in it.
+                        blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
+                        threeAddressCode[functionScope][blockIndicator] = {}
+
                     addrIndexForWhile = addrIndex-1#We want to know what the address index is for the if statement. We will use this to create the goto statement for the while loop.
                     blockAddressForWhile = blockIndicator #along with block Address
                     threeAddressCode[functionScope][blockIndicator] = {}
@@ -557,7 +561,7 @@ def _create3AddressCodeForAssignStmt(assignStmtNode):
         exprDict, temporaryvariableName = _create3AddressCodeForExpr(child, exprDict)
         declValue = temporaryvariableName
         temporaryDict.update(exprDict)
-        temporaryDict[addrIndex-1] = [declID, temporaryDict[addrIndex-1][0][5:], 'assign'] #Want to assign the variable to the previous 3addresscode variable values. Remove the assigned the tempvariable to the permanent variable
+        temporaryDict[addrIndex-1] = [declID, temporaryDict[addrIndex-1][1], temporaryDict[addrIndex-1][2], temporaryDict[addrIndex-1][3],  'assign'] #Want to assign the variable to the previous 3addresscode variable values. Remove the assigned the tempvariable to the permanent variable
         
    
     threeAddressCode[functionScope][blockIndicator].update(temporaryDict)
