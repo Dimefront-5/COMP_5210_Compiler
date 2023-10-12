@@ -23,7 +23,7 @@ int choice () {
 
 
 char choice2 (int i, char c) {
-    while (i < 10) {
+    while (i - 1 < 10) {
         if ( i == 0){
             return 'c';
 

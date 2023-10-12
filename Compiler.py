@@ -1,17 +1,18 @@
 '''
 -@author: Tyler Ray
--@date: 10/5/2023
+-@date: 10/11/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
 - ***WORK IN PROGRESS***
-- Finished: Tokenizer, Parser
+- Finished: Tokenizer, Parser, 3 Address Code Generator
 '''
 
 import tokenizer as tk
 import custom_parser as ps
 import astto3addrcode as a3
 import compilerconstants as cc
+import constantpropagation as cp
 
 import argparse
 import sys
@@ -39,6 +40,8 @@ def main():
 
     threeAddressCode = a3.converter(parsetree, symbolTable)
 
+    temp = optimizerLoop(threeAddressCode) #This is where we will call the optimizer, for the ungraded checkpoint ignore this
+
     if error_output != "":
         print("Errors found in ", possibleInputFile, ":\n\n")
         print(error_output)
@@ -47,6 +50,17 @@ def main():
     _printingOutput(args, output_for_tokens, parsetree, symbolTable, threeAddressCode, possibleInputFile)
 
 #------ Inward Facing modules
+
+def optimizerLoop(threeAddressCode):
+    
+    newthreeAdressCode, changed = cp.propagator(threeAddressCode)
+
+    while changed == True:
+        threeAddressCode = newthreeAdressCode
+        newthreeAdressCode, changed = cp.propagator(threeAddressCode)
+
+    return newthreeAdressCode
+
 
 #Has a built in help command. 
 def _commandLineParser():
@@ -137,7 +151,7 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                         else:
                             output += ' ' * indent + value[0] + ' = ' + value[1] + ' ' + value[2] + ' ' + value[3] + '\n'
         else:
-            output += children + ' = ' + threeAddressCode[children] + '\n' 
+            output += 'global:\n' + ' ' * 3 + children + ' = ' + threeAddressCode[children] + '\n' 
 
     return output
 

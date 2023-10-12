@@ -6,10 +6,10 @@
 '''
 
 import re
+import compilerconstants as cc
 
 allowedTypes = r'double|int|float|char|string|signed|unsigned|long|short|void'
 typeModifiers = r'signed|unsigned|long|short'
-exprOps = r'\+|\-|\/|\*'
 relationalOps = r'\<|\>|\<=|\>=|\==|\!='
 
 global threeAddressCode
@@ -196,10 +196,10 @@ def _create3AddressCodeForExpr(exprNode, temporaryDict):
 
     for child in exprChildren:
         childValue = child.return_value()
-        if (re.match(exprOps, childValue) or childValue == '()') and index == 0: #is the next child an expression?
+        if (re.match(cc.exprOps, childValue) or childValue == '()') and index == 0: #is the next child an expression?
             temporaryDict, temporaryvariableName1 = _create3AddressCodeForExpr(child, temporaryDict)
         
-        elif (re.match(exprOps, childValue) or childValue == '()') and index == 1:
+        elif (re.match(cc.exprOps, childValue) or childValue == '()') and index == 1:
             temporaryDict, temporaryvariableName2 = _create3AddressCodeForExpr(child, temporaryDict)
 
         elif child.return_children() == [] and index == 0:#Is it a literal?
@@ -412,6 +412,7 @@ def _parseRelOpSides(operator):
                 firstExpr = temporaryvariableName
             else:
                 secondExpr = temporaryvariableName
+                
             temporaryDict.update(exprDict)
         else:
             if index == 0:
