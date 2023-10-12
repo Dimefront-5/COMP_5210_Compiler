@@ -1075,7 +1075,15 @@ def _parseTerm(tokens):
         if termNode == None:
             return None
         
-        mulOpNode.add_child(termNode)
+        if termNode.return_children() == []:#I was doing math incorrectly and when we had multiple mulOPs back to back was doing htem backwards. This fixes that
+            mulOpNode.add_child(termNode)
+        else:
+            temp = termNode.return_children()[0]
+            mulOpNode.add_child(temp)
+            termNode.children.pop(0)
+            termNode.add_child(mulOpNode)
+            mulOpNode = termNode
+
         return mulOpNode
     
     return factorNode

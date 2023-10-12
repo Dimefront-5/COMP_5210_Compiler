@@ -246,11 +246,9 @@ def _piecingTogetherExpressionCorrectly(exprNode, temporaryDict, second_exprValu
                 first_exprValue = temporaryvariableName2
             else:
                 first_exprValue = temporaryvariableName1
-        expr_string = '(' + first_exprValue + ')'
+        temporaryDict[addrIndex] = [temporaryvariableName, first_exprValue, operation, 'assign']
     else:
-        expr_string = first_exprValue + ' ' + operation + ' ' + second_exprValue
-
-    temporaryDict[addrIndex] = [temporaryvariableName, first_exprValue, operation, second_exprValue, 'assign']
+        temporaryDict[addrIndex] = [temporaryvariableName, first_exprValue, operation, second_exprValue, 'assign']
     addrIndex += 1
 
     return temporaryDict, temporaryvariableName

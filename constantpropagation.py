@@ -6,8 +6,10 @@
 '''
 
 import re
+import copy
 
 import compilerconstants as cc
+
 
 #Calls the iteratingThroughCode function and returns the new 3 address code and whether or not it changed
 def propagator(threeAddrCode):
@@ -19,13 +21,14 @@ def propagator(threeAddrCode):
 
 def _iteratingThroughCode(threeAddrCode):
     changed = False
-    for scope in threeAddrCode:
-        if isinstance(threeAddrCode[scope], dict): #Ignoring global variables for now
-            for block in threeAddrCode[scope]:
+    newthreeAddrCode = copy.deepcopy(threeAddrCode)
+    for scope in newthreeAddrCode:
+        if isinstance(newthreeAddrCode[scope], dict): #Ignoring global variables for now
+            for block in newthreeAddrCode[scope]:
                 newBlock, changed = _lookingForConstants(threeAddrCode[scope][block], changed)
-                threeAddrCode[scope][block] = newBlock
+                newthreeAddrCode[scope][block] = newBlock
 
-    return threeAddrCode, changed
+    return newthreeAddrCode, changed
 
 #This will iterate through the statements in a block and look for constants
 def _lookingForConstants(stmtsInBlock, changed):
@@ -63,7 +66,8 @@ def _lookingForConstants(stmtsInBlock, changed):
 
 #Will check to see if the stmt value at 1 is a constant number or is a variable that has a constant value. If it is, it will replace it with the constant value
 def _checkingForConstant(variablesWithConstants, stmt, changed):
-    if stmt[1].isnumeric() == True:
+
+    if re.match(cc.numbers, stmt[1]): #If the value is a negative number, we want to make sure we don't treat the negative sign as a variable
         variablesWithConstants[stmt[0]] = stmt[1]
     elif stmt[1] in variablesWithConstants:
         stmt[1] = variablesWithConstants[stmt[1]]

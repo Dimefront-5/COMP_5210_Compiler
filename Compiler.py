@@ -8,11 +8,13 @@
 - Finished: Tokenizer, Parser, 3 Address Code Generator
 '''
 
+from hmac import new
 import tokenizer as tk
 import custom_parser as ps
 import astto3addrcode as a3
 import compilerconstants as cc
 import constantpropagation as cp
+import constantfolder as cf
 
 import argparse
 import sys
@@ -40,24 +42,33 @@ def main():
 
     threeAddressCode = a3.converter(parsetree, symbolTable)
 
-    temp = optimizerLoop(threeAddressCode) #This is where we will call the optimizer, for the ungraded checkpoint ignore this
+    if args.a: #This is so we can print out the unoptimized code
+        if threeAddressCode == None:
+            print("Errors found in ", possibleInputFile, ":")
+            print("\tSyntax Error\n\n")
+            sys.exit()
+        else:
+            output = _creatingOutputFor3AddressCode(threeAddressCode)
+            print(output)
+
+    optimizedThreeAddressCode = optimizerLoop(threeAddressCode) #This is where we will call the optimizer, for the ungraded checkpoint ignore this
 
     if error_output != "":
         print("Errors found in ", possibleInputFile, ":\n\n")
         print(error_output)
         sys.exit()
 
-    _printingOutput(args, output_for_tokens, parsetree, symbolTable, threeAddressCode, possibleInputFile)
+    _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, possibleInputFile)
 
 #------ Inward Facing modules
 
 def optimizerLoop(threeAddressCode):
-    
     newthreeAdressCode, changed = cp.propagator(threeAddressCode)
+    newthreeAdressCode, changed = cf.folder(newthreeAdressCode, changed)
 
     while changed == True:
-        threeAddressCode = newthreeAdressCode
-        newthreeAdressCode, changed = cp.propagator(threeAddressCode)
+        newthreeAdressCode, changed = cp.propagator(newthreeAdressCode)
+        newthreeAdressCode, changed = cf.folder(newthreeAdressCode, changed)
 
     return newthreeAdressCode
 
@@ -76,6 +87,8 @@ def _commandLineParser():
     parser.add_argument('-s', action="store_true", help='outputs a symbol table of the input file')
 
     parser.add_argument('-a', action="store_true", help='outputs the three address code of the input file')
+
+    parser.add_argument('-o', action="store_true", help='outputs the optimized three address code of the input file')
 
     args = parser.parse_args()
 
@@ -143,7 +156,7 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                     elif value[2] == 'functionCall':
                         output += ' ' * indent + 'call ' +  value[0] + '(' + str(value[1]) + ')\n'
 
-                    elif value[2] == 'assign' or value[4] == 'assign':
+                    elif value[2] == 'assign' or value[3] == 'assign' or value[4] == 'assign':
                         if len(value) < 5:
                             output += ' ' * indent + value[0] + ' = ' + value[1] + '\n'
                         elif value[2] == '()':
@@ -167,7 +180,7 @@ def _removingCommentsFromDictionary(dictionary):
     return newDictionary
 
 
-def _printingOutput(args, output_for_tokens, parsetree, symbolTable, threeAddressCode, possibleInputFile):
+def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCode, possibleInputFile):
     if args.t:
         print(output_for_tokens)
 
@@ -187,14 +200,9 @@ def _printingOutput(args, output_for_tokens, parsetree, symbolTable, threeAddres
         else:
             print(symbolTable)
 
-    if args.a:
-        if threeAddressCode == None:
-            print("Errors found in ", possibleInputFile, ":")
-            print("\tSyntax Error\n\n")
-            sys.exit()
-        else:
-            output = _creatingOutputFor3AddressCode(threeAddressCode)
-            print(output)
+    if args.o:
+        output = _creatingOutputFor3AddressCode(optimizedCode)
+        print(output)
 
 if __name__ == "__main__":
     main()
