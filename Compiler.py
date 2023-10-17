@@ -15,6 +15,7 @@ import compilerconstants as cc
 import constantpropagation as cp
 import constantfolder as cf
 import deadcoderemoval as dcr
+import copypropagation as cpy
 
 import argparse
 import sys
@@ -74,6 +75,7 @@ def optimizerLoop(threeAddressCode):
     newthreeAdressCode, changed = cp.propagator(threeAddressCode)
     newthreeAdressCode, changed = cf.folder(newthreeAdressCode, changed)
     newthreeAdressCode, changed = dcr.deadCodeRemover(newthreeAdressCode, changed)
+    newthreeAdressCode, changed = cpy.copyPropagator(newthreeAdressCode, changed)
 
     while changed == True:
         newthreeAdressCode, changed = cp.propagator(newthreeAdressCode)
@@ -163,6 +165,8 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                         if value[1] != '':
                             output += ' ' * indent + value[0] + ' = ' + value[1] + '\n'
 
+                    elif len(value) == 5 and value[-1] == 'decl':
+                        output += ' ' * indent + value[0] + ' = ' + value[1] + ' ' + value[2] + ' ' + value[3] + '\n'
                     elif value[2] == 'functionCall':
                         output += ' ' * indent + 'call ' +  value[0] + '(' + str(value[1]) + ')\n'
 

@@ -5,8 +5,6 @@
 - Will take a 3 address code representation and remove dead code from it
 '''
 
-
-
 def deadCodeRemover(threeAddrCode, changed):
     newThreeAddrCode, potentialChange = _iteratingThroughCode(threeAddrCode)
 
@@ -14,7 +12,6 @@ def deadCodeRemover(threeAddrCode, changed):
         changed = potentialChange
 
     return newThreeAddrCode, changed
-
 
 
 #------ Inward Facing modules
@@ -31,19 +28,17 @@ def _iteratingThroughCode(threeAddrCode):
         
 
     #Now we need to iterate through the deadCodeCandidates and remove the ones that are false
-
-    
-
     return threeAddrCode, changed
 
 
 def _iteratingThroughBlock(block, deadCodeCandidates, blockName, scope):
     for key, line in block.items():
         if line[-1] == 'assign' or line[-1] == 'decl' or line[-1] == 'return':
-            if line[0] not in deadCodeCandidates:
-                deadCodeCandidates[line[0]] = [False, scope, blockName, key]
             
             deadCodeCandidates = _areVariablesUsedInThisBlock(line, deadCodeCandidates)
+
+            if line[0] not in deadCodeCandidates and line[0].isnumeric() == False:
+                deadCodeCandidates[line[0]] = [False, scope, blockName, key]
 
         elif line[0] == 'if':
             deadCodeCandidates = _areVariablesUsedInThisBlock(line, deadCodeCandidates)
@@ -60,6 +55,8 @@ def _areVariablesUsedInThisBlock(line, deadCodeCandidates):
     elif line[2] == 'assign': #Doesn't have a operator meaning it is a single assignment
         if line[1] in deadCodeCandidates:
             deadCodeCandidates[line[1]][0] = True
+        elif line[0] in deadCodeCandidates:
+            deadCodeCandidates[line[0]][0] = True
 
     elif line[3] == 'decl':
         if line[1] in deadCodeCandidates:
@@ -74,6 +71,7 @@ def _areVariablesUsedInThisBlock(line, deadCodeCandidates):
 
 
 def _removingDeadCode(threeAddrCode, deadCodeCandidates):
+
     changed = False
     for key, value in deadCodeCandidates.items():
         if value[0] == False:

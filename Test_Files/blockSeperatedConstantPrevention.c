@@ -10,5 +10,5 @@ int main() {
 
     i = j + 5;
 
-    return 5 + 10;
+    return i;
 }
