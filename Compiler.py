@@ -81,6 +81,7 @@ def optimizerLoop(threeAddressCode):
         newthreeAdressCode, changed = cp.propagator(newthreeAdressCode)
         newthreeAdressCode, changed = cf.folder(newthreeAdressCode, changed)
         newthreeAdressCode, changed = dcr.deadCodeRemover(newthreeAdressCode, changed)
+        newthreeAdressCode, changed = cpy.copyPropagator(newthreeAdressCode, changed)
 
     return newthreeAdressCode
 

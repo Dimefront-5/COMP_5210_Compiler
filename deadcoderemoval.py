@@ -6,6 +6,7 @@
 '''
 
 def deadCodeRemover(threeAddrCode, changed):
+    print(threeAddrCode)
     newThreeAddrCode, potentialChange = _iteratingThroughCode(threeAddrCode)
 
     if changed == False:
@@ -22,7 +23,7 @@ def _iteratingThroughCode(threeAddrCode):
         deadCodeCandidates = {}
         if isinstance(threeAddrCode[scope], dict): #Ignoring global variables for now
             for block in threeAddrCode[scope]:
-                deadCodeCandidates = _iteratingThroughBlock(threeAddrCode[scope][block], deadCodeCandidates, block, scope)
+                deadCodeCandidates = _iteratingThroughBlock(threeAddrCode[scope][block], deadCodeCandidates, threeAddrCode, block, scope)
             
             threeAddrCode, changed = _removingDeadCode(threeAddrCode, deadCodeCandidates)
         
@@ -31,13 +32,15 @@ def _iteratingThroughCode(threeAddrCode):
     return threeAddrCode, changed
 
 
-def _iteratingThroughBlock(block, deadCodeCandidates, blockName, scope):
-    for key, line in block.items():
+def _iteratingThroughBlock(block, deadCodeCandidates, threeAddrCode, blockName, scope):
+    for key, line in list(block.items()):
         if line[-1] == 'assign' or line[-1] == 'decl' or line[-1] == 'return':
             
             deadCodeCandidates = _areVariablesUsedInThisBlock(line, deadCodeCandidates)
 
-            if line[0] not in deadCodeCandidates and line[0].isnumeric() == False:
+            if line[1] == '' and line[-1] == 'decl':
+                threeAddrCode[scope][blockName].pop(key)
+            if line[0] not in deadCodeCandidates and line[0].isnumeric() == False and line[1] != '':
                 deadCodeCandidates[line[0]] = [False, scope, blockName, key]
 
         elif line[0] == 'if':
