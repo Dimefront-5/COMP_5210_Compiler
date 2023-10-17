@@ -8,13 +8,13 @@
 - Finished: Tokenizer, Parser, 3 Address Code Generator
 '''
 
-from hmac import new
 import tokenizer as tk
 import custom_parser as ps
 import astto3addrcode as a3
 import compilerconstants as cc
 import constantpropagation as cp
 import constantfolder as cf
+import deadcoderemoval as dcr
 
 import argparse
 import sys
@@ -40,6 +40,14 @@ def main():
 
     parsetree, symbolTable = ps.parser(tokens)
 
+    if args.p:
+        if parsetree == None:
+           print("Errors found in ", possibleInputFile, ":")
+           print("\tSyntax Error\n\n")
+           sys.exit()
+        else:
+            print(parsetree)
+
     threeAddressCode = a3.converter(parsetree, symbolTable)
 
     if args.a: #This is so we can print out the unoptimized code
@@ -58,17 +66,19 @@ def main():
         print(error_output)
         sys.exit()
 
-    _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, possibleInputFile)
+    _printingOutput(args, output_for_tokens, symbolTable, optimizedThreeAddressCode, possibleInputFile)
 
 #------ Inward Facing modules
 
 def optimizerLoop(threeAddressCode):
     newthreeAdressCode, changed = cp.propagator(threeAddressCode)
     newthreeAdressCode, changed = cf.folder(newthreeAdressCode, changed)
+    newthreeAdressCode, changed = dcr.deadCodeRemover(newthreeAdressCode, changed)
 
     while changed == True:
         newthreeAdressCode, changed = cp.propagator(newthreeAdressCode)
         newthreeAdressCode, changed = cf.folder(newthreeAdressCode, changed)
+        newthreeAdressCode, changed = dcr.deadCodeRemover(newthreeAdressCode, changed)
 
     return newthreeAdressCode
 
@@ -180,17 +190,11 @@ def _removingCommentsFromDictionary(dictionary):
     return newDictionary
 
 
-def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCode, possibleInputFile):
+def _printingOutput(args, output_for_tokens, symbolTable, optimizedCode, possibleInputFile):
     if args.t:
         print(output_for_tokens)
 
-    if args.p:
-        if parsetree == None:
-           print("Errors found in ", possibleInputFile, ":")
-           print("\tSyntax Error\n\n")
-           sys.exit()
-        else:
-            print(parsetree)
+    
 
     if args.s:
         if symbolTable == None:

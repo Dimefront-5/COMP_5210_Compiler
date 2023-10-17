@@ -5,8 +5,12 @@
 - Will take a given AST and convert it to 3 address code
 '''
 
+from ast import expr
 import re
+
+from numpy import add
 import compilerconstants as cc
+from custom_parser import ASTNode
 
 allowedTypes = r'double|int|float|char|string|signed|unsigned|long|short|void'
 typeModifiers = r'signed|unsigned|long|short'
@@ -178,6 +182,148 @@ def _create3AddressCodeForDecl(declNode, temporaryDict):
     
     return temporaryDict
 
+'''
+def _temporarySolution(exprNode, temporaryDict):
+    global threeAddressCode
+    global functionScope
+    global addrIndex
+
+    mulOps = r'\*|\/|\%'
+    addOps = r'\+|\-'
+    exprChildren = exprNode.return_children()
+
+    onesideOfExpr = None
+    OneSide = None
+    secondSideOfExpr = None
+    for child in exprChildren:
+        if re.match(mulOps, child.return_value()) and re.match(mulOps, exprNode.return_value()):
+            if onesideOfExpr == None:
+                if exprChildren.index(child) == 0:
+                    onesideOfExpr = exprChildren[1].return_value()
+                else:
+                    onesideOfExpr = exprChildren[0].return_value()
+
+            temporaryVariableName = _createTemporaryVariableName()
+            OtherNumber = _otherNumberFinder(child, temporaryVariableName)
+            temporaryDict[addrIndex] = [temporaryVariableName, onesideOfExpr, exprNode.return_value(), OtherNumber, 'assign']
+            addrIndex += 1
+            temporaryDict = _temporarySolution(child, temporaryDict)
+            return temporaryDict
+
+        elif re.match(addOps, child.return_value()) and re.match(addOps, exprNode.return_value()):
+            if onesideOfExpr == None:
+                if exprChildren.index(child) == 0:
+                    onesideOfExpr = exprChildren[1]
+                else:
+                    onesideOfExpr = exprChildren[0]
+            
+            temporaryVariableName = _createTemporaryVariableName()
+            OtherNumber = _otherNumberFinder(child, temporaryVariableName)
+            temporaryDict[addrIndex] = [temporaryVariableName, onesideOfExpr, exprNode.return_value(), OtherNumber, 'assign']
+            addrIndex += 1
+            temporaryDict = _temporarySolution(child, temporaryDict)
+            return temporaryDict
+
+        elif re.match(mulOps, child.return_value()) and re.match(addOps, exprNode.return_value()) and onesideOfExpr != None:
+            if onesideOfExpr == None:
+                if exprChildren.index(child) == 0:
+                    onesideOfExpr = exprChildren[1].return_value()
+                else:
+                    onesideOfExpr = exprChildren[0].return_value()
+                
+            temporaryVariableName = _createTemporaryVariableName()
+            OtherNumber = _otherNumberFinder(child, temporaryVariableName)
+
+            if OtherNumber.isnumeric() == False:
+                temp = OtherNumber
+                OtherNumber = onesideOfExpr
+                onesideOfExpr = temp
+
+            temporaryDict[addrIndex] = [temporaryVariableName, onesideOfExpr, exprNode.return_value(), OtherNumber, 'assign']
+            addrIndex += 1
+            temporaryDict = _temporarySolution(child, temporaryDict)
+            return temporaryDict
+
+        elif re.match(mulOps, child.return_value()) and re.match(addOps, exprNode.return_value()) and OneSide == None: #Two mul ops that a add op depends on
+            temporaryDict = _temporarySolution(child, temporaryDict)
+            OneSide = temporaryDict[addrIndex - 1][0]
+
+        elif OneSide != None:
+            temporaryDict = _temporarySolution(child, temporaryDict)
+
+            temporaryVariableName = _createTemporaryVariableName()
+            temporaryDict[addrIndex] = [temporaryVariableName, OneSide, exprNode.return_value(), temporaryDict[addrIndex - 1][0], 'assign']
+            addrIndex += 1
+            return temporaryDict
+
+        elif onesideOfExpr == None and child.return_children() == []:
+            onesideOfExpr = child.return_value()
+        else:
+            secondSideOfExpr = child.return_value()
+    
+    if secondSideOfExpr != None:
+        if secondSideOfExpr.isnumeric() == False:
+            temp = secondSideOfExpr
+            secondSideOfExpr = onesideOfExpr
+            onesideOfExpr = temp
+
+        temporaryVariableName = _createTemporaryVariableName()
+        temporaryDict[addrIndex] = [temporaryVariableName, onesideOfExpr, exprNode.return_value(), secondSideOfExpr, 'assign']
+        addrIndex += 1
+    return temporaryDict
+
+
+def _otherNumberFinder(exprNode, temporaryVariableName):
+    global threeAddressCode
+    global functionScope
+    global addrIndex
+
+
+    exprChildren = exprNode.return_children()
+
+    index = 0
+    for child in exprChildren:
+        index += 1
+        if child.return_children() == []:
+            exprNode.children.remove(child)
+            exprNode.add_child(ASTNode(temporaryVariableName))
+            return child.return_value()
+        elif index == 2:
+            return child.return_value()
+'''   
+        
+        
+    
+
+
+        
+
+    
+def _create3AddressCodeForMultiplicativeExpr(exprNode, temporaryDict):
+    pass
+
+def _create3AddressCodeForAddExpr(exprNode, temporaryDict):
+    global addrIndex
+    global threeAddressCode
+    global functionScope
+
+    addOps = r'\+|\-'
+    mulOps = r'\*|\/|\%'
+    exprChildren = exprNode.return_children()
+
+    onesideOfExpr = None
+    for child in exprChildren:
+        if re.match(addOps, child.return_value()):
+            _create3AddressCodeForAddExpr(child, temporaryDict)
+        elif re.match(mulOps, child.return_value()):
+            _create3AddressCodeForMultiplicativeExpr(child, temporaryDict)
+        elif onesideOfExpr == None:
+            onesideOfExpr = child.return_value()
+        else:
+            pass
+
+
+
 #Creates the 3 address code for expressions
 def _create3AddressCodeForExpr(exprNode, temporaryDict):
     global threeAddressCode
@@ -295,7 +441,6 @@ def _create3AddressCodeForIfStmt(ifStmtNode):
             
             for val in list(temporaryDict):
                 index += 1
-                #print(threeAddressCode[functionScope][blockIndicator])
                 if temporaryDict[val][0] != 'if':#While we walk through the code, we will be removing ifs that appear when we are evaluating expressions that have || or &&. We only want the final if statement to show up.
                     threeAddressCode[functionScope][blockIndicator][val] = temporaryDict[val]
 
@@ -384,7 +529,7 @@ def _create3AddrForMultipleRelOps(temporaryDict):
     for val in list(temporaryDict):
         if temporaryDict[val][0] == 'if':
             tempName = _createTemporaryVariableName()
-            temporaryDict[addrIndex] = [tempName, str(temporaryDict[val][1]) + ' ' + str(temporaryDict[val][2]) + ' ' + str(temporaryDict[val][3]), 'assign']
+            temporaryDict[addrIndex] = [tempName, str(temporaryDict[val][1]), str(temporaryDict[val][2]), str(temporaryDict[val][3]), 'assign']
             addrIndex += 1
 
     return temporaryDict
@@ -444,11 +589,11 @@ def _create3AddressCodeForWhileStmt(whileStmtNode):
                 if temporaryDict[val][0] != 'if':
                     threeAddressCode[functionScope][blockIndicator][val] = temporaryDict[val]
 
-
                 else:
                     if threeAddressCode[functionScope][blockIndicator] != {}:#Same as if statement with checking if the previous block had something in it.
                         blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
                         threeAddressCode[functionScope][blockIndicator] = {}
+                        temporaryDict[val][4] = 'goto L' + str(int(blockIndicator[1:]) + 1)
 
                     addrIndexForWhile = addrIndex-1#We want to know what the address index is for the if statement. We will use this to create the goto statement for the while loop.
                     blockAddressForWhile = blockIndicator #along with block Address

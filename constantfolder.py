@@ -46,15 +46,21 @@ def _constantFoldingBlock(block, changed):
 def _checkingForConstants(stmt):
     if re.match(cc.numbers, stmt[1]) and re.match(cc.numbers, stmt[3]):
         evaluatedNumber = _foldTheConstants(stmt[1], stmt[2], stmt[3])
-        stmt[1] = evaluatedNumber
-        stmt.pop(2)
-        stmt.pop(2) #We pop twice because we want to get rid of the operator and the second constant, we do the same index twice because the list shifts
-        return stmt, True
+        if evaluatedNumber != False:
+            stmt[1] = evaluatedNumber
+            stmt.pop(2)
+            stmt.pop(2) #We pop twice because we want to get rid of the operator and the second constant, we do the same index twice because the list shifts
+            return stmt, True
+        else:
+            return stmt, False
     else:
         return stmt, False
 
 #Performs the constant folding
 def _foldTheConstants(constant1, operation, constant2):
-    evalString = constant1 + operation + constant2
-    evaluatedNumber = eval(evalString)
-    return str(evaluatedNumber)
+    if operation != '==':
+        evalString = constant1 + operation + constant2
+        evaluatedNumber = eval(evalString)
+        return str(evaluatedNumber)
+    else:
+        return False
