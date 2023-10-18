@@ -1,8 +1,3 @@
 int main(int i){
-   int hello = 10 *2 + 3 - 5 / 4 * 5 - 7 / 6;
-
-   int j = 5;
-
-   return hello;
-
+   int hello = 0 + 5 - 7 + (9 * 8) * 8 / 9;
 }
