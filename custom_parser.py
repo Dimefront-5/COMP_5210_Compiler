@@ -5,6 +5,8 @@
 - Will parse through our token list and output a AST along with a symbol table
 - Works for the below grammar
 '''
+from audioop import mul
+from math import e
 import compilerconstants as cc
 from anytree import RenderTree #Our fancy printing with AST
 import re
@@ -91,13 +93,6 @@ class SymbolTable:
             return self.symbolTable[scope]['args']
         else:
             return None
-
-    def add_value(self, name, value, scope):
-        if name in self.symbolTable[scope]:
-            self.symbolTable[scope][name] = [self.symbolTable[scope][name][0], value]
-        else:
-            self.symbolTable[scope][name].append(value)
-
 
     def __str__(self):
         output = ""
@@ -478,7 +473,7 @@ def _parseEndofDecl(tokens, local_decl, declType, declId):
 
         first_number_index = index
 
-        exprNode = _parseExpr(tokens)
+        exprNode = _parseExprSetup(tokens)
 
         if exprNode != None: #If it isn't none, it is a number/expression that results in a number
             if memoryNode != None:#Is this a memory address using the &?
@@ -539,8 +534,6 @@ def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode, first_
             expression = _expressionRecreator(tokens, first_number_index) #We want to pass in the value for our symbol table
             symbolTable.add_variable(declId, declType, scope)
             #Pass in the name, type, and scope
-            symbolTable.add_value(declId, expression, scope)
-            #Passing in the name, value, and scope
             index += 1
             return local_decl
         else:
@@ -564,7 +557,6 @@ def _parseEndofDeclString(tokens, local_decl, declType, declId):
         local_decl.add_child(ASTNode(second_half_of_decl))
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
             symbolTable.add_variable(declId, declType, scope)
-            symbolTable.add_value(declId, value, scope)
             #Passing in name, value, and scope for strings/characters we have to push it back further to grab the right tokens
             index += 1
             return local_decl
@@ -638,7 +630,7 @@ def _parseFunctionCall(tokens):
 
     isFunction = symbolTable.get_scope_type(functionName)
 
-    if isFunction != None:#If the function is declared
+    if isFunction != None: #If the function is declared
         functionNode = ASTNode(functionName)
 
         paramNode, params = _setupParseParameters(tokens, functionNode)
@@ -723,7 +715,7 @@ def _parseOneParam(tokens):
     errormsg = 'Error: Expected \')\' Temp'
     first_number_index = index
     
-    exprNode = _parseExpr(tokens)
+    exprNode = _parseExprSetup(tokens)
 
     if exprNode != None: #A expression can be a ID or a number
         expression = _expressionRecreator(tokens, first_number_index)
@@ -757,7 +749,7 @@ def _parseReturnStmt(tokens):
     index += 1
 
     first_number_index = index
-    exprNode = _parseExpr(tokens)
+    exprNode = _parseExprSetup(tokens)
 
     if exprNode != None: #Return can be a id or number.
         returnValue = _parseReturnStmtNumberAndID(tokens, first_number_index) #We don't use the returnValue, but it is because I have already succesfully parsed the expr, I just need to make sure it is a valid return type
@@ -924,12 +916,12 @@ def _parseConditionalExpr(tokens):
     global scope
     errormsg = 'Error: Invalid Conditional, incorrect syntax'
 
-    expr = _parseExpr(tokens)
+    expr = _parseExprSetup(tokens)
     if expr != None:
         if re.match(grammar['Relop'][0], tokens[str(index)][cc.TOKEN_INDEX]):
             relOp = tokens[str(index)][cc.TOKEN_INDEX]
             index += 1
-            second_expr = _parseExpr(tokens)
+            second_expr = _parseExprSetup(tokens)
 
             errormsg = 'Error: Invalid if statement, expected a variable or number after the relop'
 
@@ -1036,91 +1028,187 @@ def _parseAssignStmt(tokens, idType):
     _customError(errormsg, tokens, index)
 
 
-#Expr parser ----------------
+#expr parser ----------------
 
-def _parseExpr(tokens):
+def _parseExprSetup(tokens):
     global index
-    termNode = _parseTerm(tokens)
 
-    if termNode == None:#We aren't throwing errors for these because at the parse_end0fDecl we use it to determine if it a number or not. I will pass in a ' if it isn't.
+    finalIndex = _findLastNumber(tokens)
+
+    tokeList = list(tokens.items())
+
+    cutTokens = tokeList[index:finalIndex+1]
+
+    cutTokens = dict(cutTokens)
+
+    exprNode = _parsingExpr(cutTokens)
+
+    if exprNode == None:
         return None
-    
-    if len(tokens) > index and tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'addOP':
-        addOpNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+    index = finalIndex + 1
+
+    return exprNode
+
+
+def _parsingExpr(tokens):
+    finalExprIndex, token_index = index_finder(tokens, ['+', '-'])
+    if finalExprIndex == 0:
+        termNode = _parsingTerm(tokens)
+        return termNode
+
+    else:
+        tokeList = list(tokens.items())
+
+        cutTokens = tokeList[0:finalExprIndex]
+
+        cutTokens = dict(cutTokens)
+        termNode = _parsingExpr(cutTokens)
+
+        addOpNode = ASTNode(tokens[token_index][cc.TOKEN_INDEX])
         addOpNode.add_child(termNode)
-        index+= 1
-        exprNode = _parseExpr(tokens)
 
-        if exprNode == None:
-            return None
-        
+        tokeList = list(tokens.items())
+
+        cutTokens = tokeList[finalExprIndex+1:]
+
+        cutTokens = dict(cutTokens)
+
+        exprNode = _parsingTerm(cutTokens)
         addOpNode.add_child(exprNode)
+
         return addOpNode
-    
-    return termNode
 
-def _parseTerm(tokens):
-    global index
-    factorNode = _parseFactor(tokens)
 
-    if factorNode == None:
-        return None
+def _parsingTerm(tokens):
+    finalTermIndex, key_index = index_finder(tokens, ['*', '/'])
+    if finalTermIndex == 0:
+        factorNode = _parsingFactor(tokens)
+        return factorNode
+    else:
+        tokeList = list(tokens.items())
 
-    if len(tokens) > index and tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'mulOP':
-        mulOpNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
-        mulOpNode.add_child(factorNode)
-        index += 1
-        termNode = _parseTerm(tokens)
+        cutTokens = tokeList[0:finalTermIndex]
 
-        if termNode == None:
-            return None
-        
+        cutTokens = dict(cutTokens)
+
+        termNode = _parsingTerm(cutTokens)
+
+        mulOpNode = ASTNode(tokens[key_index][cc.TOKEN_INDEX])
         mulOpNode.add_child(termNode)
+
+        tokeList = list(tokens.items())
+
+        cutTokens = tokeList[finalTermIndex+1:]
+
+        cutTokens = dict(cutTokens)
+
+        exprNode = _parsingFactor(cutTokens)
+        
+        mulOpNode.add_child(exprNode)
 
         return mulOpNode
     
-    return factorNode
-
-def _parseFactor(tokens):
-    global index
-    global scope
-
-    if tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'identifier':
-        #Is our Identifier declared in a global, local, or parameter scope?
-        isIdInFunction = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], scope)
-        isIdInGlobal = symbolTable.get_type(tokens[str(index)][cc.TOKEN_INDEX], "global")
+def _parsingFactor(tokens):
+    if len(tokens) == 0:
+        return None
+    
+    currentIndex = list(tokens.keys())[0]
+    if tokens[currentIndex][cc.TOKEN_TYPE_INDEX] == 'identifier':
+        isIdInFunction = symbolTable.get_type(tokens[currentIndex][cc.TOKEN_INDEX], scope)
+        isIdInGlobal = symbolTable.get_type(tokens[currentIndex][cc.TOKEN_INDEX], "global")
         isIdInFunctionParams = symbolTable.get_args(scope)
 
         if isIdInFunction != None or isIdInGlobal != None:
-            factor = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
-            index += 1
-            return factor
+            factorNode = ASTNode(tokens[currentIndex][cc.TOKEN_INDEX])
+            return factorNode
         elif tokens[str(index)][cc.TOKEN_INDEX] in isIdInFunctionParams:
-            factor = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
-            index += 1
-            return factor
+            factorNode = ASTNode(tokens[currentIndex][cc.TOKEN_INDEX])  
+            return factorNode
         else:
             _customError("Error: Undeclared identifier", tokens, index)
     
-    elif tokens[str(index)][cc.TOKEN_TYPE_INDEX] == 'number': 
-        factor = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
-        index += 1
-        return factor
+    elif tokens[currentIndex][cc.TOKEN_TYPE_INDEX] == 'number':
+        factorNode = ASTNode(tokens[currentIndex][cc.TOKEN_INDEX])
+        return factorNode
     
-    elif tokens[str(index)][cc.TOKEN_INDEX] == '(':
-        factor = tokens[str(index)][cc.TOKEN_INDEX]
-        index += 1
-        exprNode = _parseExpr(tokens)
+    elif tokens[currentIndex][cc.TOKEN_INDEX] == '(':
+        closingParenIndex = findClosingParenOfExpr(tokens)
+        tokeList = list(tokens.items())
 
-        if exprNode == None:
-            return None
+        cutTokens = tokeList[1:int(closingParenIndex)]
+
+        cutTokens = dict(cutTokens)
+
+        factorNode = _parsingExpr(cutTokens)
+        parenNode = ASTNode('()')
+        parenNode.add_child(factorNode)
+        return parenNode
+    
+    return None
+    
+
+def findClosingParenOfExpr(tokens):
+    global index
+    number_of_open_paren = 0
+    for keyIndex in tokens:
+        if tokens[keyIndex][1] == "(":
+            number_of_open_paren += 1
+
+        elif tokens[keyIndex][1] == ")":
+            number_of_open_paren -= 1
+
+        if number_of_open_paren == 0:
+            return keyIndex
+
+    return None
+
+
+def index_finder(tokens, operators):
+    index_of_mulOP = 0
+    index_of_last_mulOP = 0
+
+    number_of_open_paren = 0
+    keyIndex_for_after_token_split = 0
+    for keyIndex in tokens:
+        if tokens[keyIndex][1] == operators[0] or tokens[keyIndex][1] == operators[1]:#Are both mulOPs and addOPs
+            if number_of_open_paren == 0:
+                index_of_last_mulOP = index_of_mulOP
+                keyIndex_for_after_token_split = keyIndex
+
+        elif tokens[keyIndex][1] == "(":
+            number_of_open_paren += 1
+
+        elif tokens[keyIndex][1] == ")":
+            number_of_open_paren -= 1
+
+        index_of_mulOP += 1
+
+    return index_of_last_mulOP, keyIndex_for_after_token_split
+
+
+def _findLastNumber(tokens):
+    global index
+    finalIndex = index
+    openParen = 0
+    while finalIndex < len(tokens):
+        if tokens[str(finalIndex)][cc.TOKEN_TYPE_INDEX] == 'number' or tokens[str(finalIndex)][cc.TOKEN_TYPE_INDEX] == 'identifier':
+            finalIndex += 1
+
+        elif tokens[str(finalIndex)][cc.TOKEN_TYPE_INDEX] == 'addOP' or tokens[str(finalIndex)][cc.TOKEN_TYPE_INDEX] == 'mulOP':
+            finalIndex += 1
         
-        if tokens[str(index)][cc.TOKEN_INDEX] == ')':
-            factor += tokens[str(index)][cc.TOKEN_INDEX]
-            parenNode = ASTNode(factor)
-            parenNode.add_child(exprNode)
-            index += 1
-            return parenNode
+        elif tokens[str(finalIndex)][cc.TOKEN_INDEX] == '(':
+            openParen += 1
+            finalIndex += 1
+
+        elif tokens[str(finalIndex)][cc.TOKEN_INDEX] == ')' and openParen > 0:
+            openParen -= 1
+            finalIndex += 1
+        else:
+            break
+
+    if index != finalIndex:
+        finalIndex -= 1
         
-    else:
-        return None
+    return finalIndex
+

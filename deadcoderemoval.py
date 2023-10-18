@@ -6,7 +6,6 @@
 '''
 
 def deadCodeRemover(threeAddrCode, changed):
-    print(threeAddrCode)
     newThreeAddrCode, potentialChange = _iteratingThroughCode(threeAddrCode)
 
     if changed == False:
@@ -74,7 +73,6 @@ def _areVariablesUsedInThisBlock(line, deadCodeCandidates):
 
 
 def _removingDeadCode(threeAddrCode, deadCodeCandidates):
-
     changed = False
     for key, value in deadCodeCandidates.items():
         if value[0] == False:
