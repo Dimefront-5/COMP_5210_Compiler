@@ -83,6 +83,8 @@ def optimizerLoop(threeAddressCode):
         newthreeAdressCode, changed = dcr.deadCodeRemover(newthreeAdressCode, changed)
         newthreeAdressCode, changed = cpy.copyPropagator(newthreeAdressCode, changed)
 
+    newthreeAdressCode = _removingParamsFrom3AddrCode(newthreeAdressCode)
+
     return newthreeAdressCode
 
 
@@ -147,16 +149,16 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                 output += ' ' * indent + blockIndicator + ':\n'
                 indent += 3
                 for child, value in threeAddressCode[children][blockIndicator].items():
-                    if value[1] == 'param':
-                        output += ' ' * indent + 'param ' + value[0] + '\n'
+                    if value[-1] == 'param':
+                        pass
 
-                    elif value[1] == 'return':
+                    elif value[-1] == 'return':
                         output += ' ' * indent + 'return ' + value[0] + '\n'
                             
-                    elif value[1] == 'expr':
+                    elif value[-1] == 'expr':
                         output += ' ' * indent + value[0] + '\n'
 
-                    elif value[1] == 'goto':
+                    elif value[-1] == 'goto':
                         output += ' ' * indent + value[0] + '\n'
 
                     elif value[0] == 'if':
@@ -171,7 +173,7 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                     elif value[2] == 'functionCall':
                         output += ' ' * indent + 'call ' +  value[0] + '(' + str(value[1]) + ')\n'
 
-                    elif value[2] == 'assign' or value[3] == 'assign' or value[4] == 'assign':
+                    elif value[-1] == 'assign':
                         if len(value) < 5:
                             output += ' ' * indent + value[0] + ' = ' + value[1] + '\n'
                         elif value[2] == '()':
@@ -212,6 +214,18 @@ def _printingOutput(args, output_for_tokens, symbolTable, optimizedCode, possibl
     if args.o:
         output = _creatingOutputFor3AddressCode(optimizedCode)
         print(output)
+
+
+def _removingParamsFrom3AddrCode(threeAddrCode):
+    for scope in list(threeAddrCode):
+        if isinstance(threeAddrCode[scope], dict):
+            for block in list(threeAddrCode[scope]):
+                for key, value in list(threeAddrCode[scope][block].items()):
+                    if value[-1] == 'param':
+                        threeAddrCode[scope][block].pop(key)
+    
+    return threeAddrCode
+    
 
 if __name__ == "__main__":
     main()

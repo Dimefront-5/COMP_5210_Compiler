@@ -73,7 +73,8 @@ def _iteratingThroughDecl(decl):
         elif childValue == 'type': #we don't care about the type for 3 address code
             pass
         elif childValue == 'Args': #We don't care about the args for 3 address code, we have already checked that they exist in our parser.
-            pass
+            _create3AddressCodeForArgs(child)
+
         elif childValue == 'local_decls':
             threeAddressCode[functionScope][blockIndicator] = {}
             _create3AddressCodeForLocalDecls(child)
@@ -99,7 +100,7 @@ def _createFunctionInAddressCode(idNode):
         threeAddressCode[functionScope][blockIndicator] = {}
 
 #Not currently used, we are going to ignore the args for now
-'''
+
 def _create3AddressCodeForArgs(argsNode):
     global threeAddressCode
     global functionScope
@@ -118,10 +119,10 @@ def _create3AddressCodeForArgs(argsNode):
             argTypeValue = arg.return_value()
             argIDValue = argID[0].return_value()
 
-            temporaryDict[addrIndex] = [argIDValue, 'param', argTypeValue] #We are just going to set the value to param. When we print it out, it will be the param and then the id. But we can't use param as multiple keys
+            temporaryDict[addrIndex] = [argIDValue, argTypeValue, 'param'] #We are just going to set the value to param. When we print it out, it will be the param and then the id. But we can't use param as multiple keys
             addrIndex += 1
 
-    threeAddressCode[functionScope][blockIndicator] = temporaryDict'''
+    threeAddressCode[functionScope][blockIndicator] = temporaryDict
 
 #Walks through each local decl
 def  _create3AddressCodeForLocalDecls(localDeclsNode):
@@ -297,17 +298,17 @@ def _create3AddressCodeForIfStmt(ifStmtNode):
 
             temporaryDict = _create3AddressCodeForstmtParens(stmt)
             index = 0
-            
+
+            if threeAddressCode[functionScope][blockIndicator] != {}: #Did the previous block have something in it? If not, we can just overwrite it. and Use it for the if statement. If not, we will create a new block.
+                blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
+                threeAddressCode[functionScope][blockIndicator] = {}
+    
             for val in list(temporaryDict):
                 index += 1
                 if temporaryDict[val][0] != 'if':#While we walk through the code, we will be removing ifs that appear when we are evaluating expressions that have || or &&. We only want the final if statement to show up.
                     threeAddressCode[functionScope][blockIndicator][val] = temporaryDict[val]
 
                 elif index == len(temporaryDict):
-                    if threeAddressCode[functionScope][blockIndicator] != {}: #Did the previous block have something in it? If not, we can just overwrite it. and Use it for the if statement. If not, we will create a new block.
-                        blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
-                        threeAddressCode[functionScope][blockIndicator] = {}
-
                     threeAddressCode[functionScope][blockIndicator][val] = temporaryDict[val]
 
         elif stmtValue == '{ }':
@@ -323,6 +324,7 @@ def _create3AddressCodeForElseStmt(stmt, blockIndicatorForIfStmts):
     global blockIndicator
     global addrIndex
 
+    elseBracketIndicator = blockIndicator
     bracketNode = stmt.return_children()[0]
     stmtListNode = bracketNode.return_children()[0]
 
@@ -330,6 +332,12 @@ def _create3AddressCodeForElseStmt(stmt, blockIndicatorForIfStmts):
     _create3AddressCodeForStmts(stmtListNode)
 
     threeAddressCode[functionScope][blockIndicatorForIfStmts][addrIndex] = ['goto L' + str(int(blockIndicator[1:]) + 1), "goto"]
+
+    previousBlock = 'L' + str(int(blockIndicatorForIfStmts[1:]) - 1)
+
+    for stmt in threeAddressCode[functionScope][previousBlock]:
+        if threeAddressCode[functionScope][previousBlock][stmt][0] == 'if':
+            threeAddressCode[functionScope][previousBlock][stmt][4] = threeAddressCode[functionScope][previousBlock][stmt][4][0:5] + blockIndicatorForIfStmts + threeAddressCode[functionScope][previousBlock][stmt][4][7:19] + elseBracketIndicator
 
     blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
     threeAddressCode[functionScope][blockIndicator] = {}
@@ -342,12 +350,20 @@ def _create3AddressCodeForBracketsInIf(stmt):
     global addrIndex
 
     stmtListNode = stmt.return_children()[0]
+
+    ifStmtBlock = blockIndicator
+
     blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1) #Adding one to our block indicator
     threeAddressCode[functionScope][blockIndicator] = {}
+    blockIndicatorForIfStmts = blockIndicator
 
     _create3AddressCodeForStmts(stmtListNode)
 
-    blockIndicatorForIfStmts = blockIndicator
+
+    for stmt in threeAddressCode[functionScope][ifStmtBlock]:
+        if threeAddressCode[functionScope][ifStmtBlock][stmt][0] == 'if':
+            threeAddressCode[functionScope][ifStmtBlock][stmt][4] = threeAddressCode[functionScope][ifStmtBlock][stmt][4][0:5] + blockIndicatorForIfStmts + threeAddressCode[functionScope][ifStmtBlock][stmt][4][7:19] + 'L' + str(int(blockIndicator[1:]) + 1)
+    
 
     blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1) #Adding one to our block indicator
     threeAddressCode[functionScope][blockIndicator] = {}

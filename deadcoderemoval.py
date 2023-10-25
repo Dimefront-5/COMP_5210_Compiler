@@ -33,12 +33,13 @@ def _iteratingThroughCode(threeAddrCode):
 
 def _iteratingThroughBlock(block, deadCodeCandidates, threeAddrCode, blockName, scope):
     for key, line in list(block.items()):
-        if line[-1] == 'assign' or line[-1] == 'decl' or line[-1] == 'return':
+        if line[-1] == 'assign' or line[-1] == 'decl' or line[-1] == 'return' or line[-1] == 'param':
             
             deadCodeCandidates = _areVariablesUsedInThisBlock(line, deadCodeCandidates)
 
             if line[1] == '' and line[-1] == 'decl':
                 threeAddrCode[scope][blockName].pop(key)
+
             if line[0] not in deadCodeCandidates and line[0].isnumeric() == False and line[1] != '':
                 deadCodeCandidates[line[0]] = [False, scope, blockName, key]
 
@@ -50,17 +51,19 @@ def _iteratingThroughBlock(block, deadCodeCandidates, threeAddrCode, blockName, 
 
 
 def _areVariablesUsedInThisBlock(line, deadCodeCandidates):
-    if line[1] == 'return':
+    if line[-1] == 'param':
+        deadCodeCandidates[line[0]] = [True, '', '', '']
+
+    elif line[-1] == 'return':
         if line[0] in deadCodeCandidates:
             deadCodeCandidates[line[0]][0] = True
 
-    elif line[2] == 'assign': #Doesn't have a operator meaning it is a single assignment
+    elif line[-1] == 'assign': #Doesn't have a operator meaning it is a single assignment
         if line[1] in deadCodeCandidates:
             deadCodeCandidates[line[1]][0] = True
-        elif line[0] in deadCodeCandidates:
-            deadCodeCandidates[line[0]][0] = True
 
-    elif line[3] == 'decl':
+
+    elif line[-1] == 'decl':
         if line[1] in deadCodeCandidates:
             deadCodeCandidates[line[1]][0] = True
     else:

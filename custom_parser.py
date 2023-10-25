@@ -777,7 +777,8 @@ def _parseReturnStmtChar(tokens):
         index += 2 #We want to skip the closing quote
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
             index += 1
-            return ASTNode(returnValue)
+            withQuotes = '\'' + returnValue + '\''
+            return ASTNode(withQuotes)
         else:
             _customError("Error: Invalid return statement, missing a semicolon", tokens, index)
     else:
