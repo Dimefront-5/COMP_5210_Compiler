@@ -4,6 +4,8 @@
 
 - Will take a 3 address code representation and remove dead code from it
 '''
+import compilerconstants as cc
+import re
 
 def deadCodeRemover(threeAddrCode, changed):
     newThreeAddrCode, potentialChange = _iteratingThroughCode(threeAddrCode)
@@ -49,7 +51,6 @@ def _iteratingThroughBlock(block, deadCodeCandidates, threeAddrCode, blockName, 
     return deadCodeCandidates
 
 
-
 def _areVariablesUsedInThisBlock(line, deadCodeCandidates):
     if line[-1] == 'param':
         deadCodeCandidates[line[0]] = [True, '', '', '']
@@ -69,8 +70,14 @@ def _areVariablesUsedInThisBlock(line, deadCodeCandidates):
     else:
         if line[1] in deadCodeCandidates:
             deadCodeCandidates[line[1]][0] = True
+        elif re.match(cc.identifiers, line[1]):
+            deadCodeCandidates[line[1]] = [True, '', '', '']
+            
         if line[3] in deadCodeCandidates:
             deadCodeCandidates[line[3]][0] = True
+
+        elif re.match(cc.identifiers, line[3]):
+            deadCodeCandidates[line[3]] = [True, '', '', '']
     
     return deadCodeCandidates
 

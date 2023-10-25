@@ -23,7 +23,7 @@ int main() {
     ch='B';
 
     // Conditional statement
-    if(num1>0xBEEF){return 5;} else {return 5;}
+    if(num1>0xBEEF){num1 = 32;} else {num2 = 4;}
 
     // Return statement
     return 0;

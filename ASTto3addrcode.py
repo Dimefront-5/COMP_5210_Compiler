@@ -5,12 +5,12 @@
 - Will take a given AST and convert it to 3 address code
 '''
 
-from ast import expr
 import re
+import matplotlib.pyplot as plt
 
-from numpy import add
 import compilerconstants as cc
-from custom_parser import ASTNode
+
+import networkx as nx
 
 allowedTypes = r'double|int|float|char|string|signed|unsigned|long|short|void'
 typeModifiers = r'signed|unsigned|long|short'
@@ -34,11 +34,15 @@ blockIndicator = None
 global addrIndex
 addrIndex = 0
 
+global flowGraph
+
+
 
 #Our main function
 def converter(AST, SymbolTable):
     global threeAddressCode
     global symbolTable 
+    global flowGraph
 
     symbolTable = SymbolTable
 
@@ -46,17 +50,26 @@ def converter(AST, SymbolTable):
 
     eachDecl = declList[0].return_children() #Grabbing each individual decleration.
 
-    _iteratingThroughMainDecls(eachDecl)
+    eachGraph = _iteratingThroughMainDecls(eachDecl)
 
-    return threeAddressCode;
+    return threeAddressCode, eachGraph
 
 
 #------ Inward Facing modules
 
 #Iterates through the main declerations or a program
 def _iteratingThroughMainDecls(eachDecl):
+    global flowGraph
+    global functionScope
+
+    eachGraph = {}
     for decl in eachDecl:
+        flowGraph = nx.DiGraph()
         _iteratingThroughDecl(decl)
+        eachGraph[functionScope] = flowGraph
+
+    return eachGraph
+        
 
 #Walks through each decl and looks for it's components. 
 def _iteratingThroughDecl(decl):
@@ -64,16 +77,19 @@ def _iteratingThroughDecl(decl):
     global functionScope
     global blockIndicator
 
+    global flowGraph
+
     children = decl.return_children()
     for child in children:
         childValue = child.return_value()
 
         if childValue == 'id':
             _createFunctionInAddressCode(child)
+            flowGraph.add_node(blockIndicator)
         elif childValue == 'type': #we don't care about the type for 3 address code
             pass
         elif childValue == 'Args': #We don't care about the args for 3 address code, we have already checked that they exist in our parser.
-            _create3AddressCodeForArgs(child)
+            pass
 
         elif childValue == 'local_decls':
             threeAddressCode[functionScope][blockIndicator] = {}
@@ -81,6 +97,10 @@ def _iteratingThroughDecl(decl):
 
         elif childValue == 'stmtList':
             _create3AddressCodeForStmts(child)
+
+    
+
+    
 
 #creates our representation of a function within the 3 address code
 def _createFunctionInAddressCode(idNode):
@@ -92,7 +112,9 @@ def _createFunctionInAddressCode(idNode):
     idName = idName.return_value()
 
     if len(idNode.return_children()) > 1: #If the decleration is a variable, we only have the value returned.
+        functionScope = idName
         threeAddressCode[idName] = idNode.return_children()[1].return_value()
+        blockIndicator = 'L0'
     else:#Is it a function?
         threeAddressCode[idName] = {}
         functionScope = idName
@@ -101,7 +123,7 @@ def _createFunctionInAddressCode(idNode):
 
 #Not currently used, we are going to ignore the args for now
 
-def _create3AddressCodeForArgs(argsNode):
+'''def _create3AddressCodeForArgs(argsNode):
     global threeAddressCode
     global functionScope
     global addrIndex
@@ -122,7 +144,7 @@ def _create3AddressCodeForArgs(argsNode):
             temporaryDict[addrIndex] = [argIDValue, argTypeValue, 'param'] #We are just going to set the value to param. When we print it out, it will be the param and then the id. But we can't use param as multiple keys
             addrIndex += 1
 
-    threeAddressCode[functionScope][blockIndicator] = temporaryDict
+    threeAddressCode[functionScope][blockIndicator] = temporaryDict'''
 
 #Walks through each local decl
 def  _create3AddressCodeForLocalDecls(localDeclsNode):
@@ -289,8 +311,10 @@ def _create3AddressCodeForIfStmt(ifStmtNode):
     global functionScope
     global blockIndicator
     global addrIndex
+
     temporaryDict = {}
     ifStmtChildren = ifStmtNode.return_children()
+    flowGraph.add_edge(blockIndicator, 'L' + str(int(blockIndicator[1:]) + 1))
 
     for stmt in ifStmtChildren:
         stmtValue = stmt.return_value()
@@ -323,10 +347,15 @@ def _create3AddressCodeForElseStmt(stmt, blockIndicatorForIfStmts):
     global functionScope
     global blockIndicator
     global addrIndex
+    global flowGraph
+    
+    if (blockIndicatorForIfStmts, blockIndicator) in flowGraph.edges():
+        flowGraph.remove_edge(blockIndicatorForIfStmts, blockIndicator)
 
     elseBracketIndicator = blockIndicator
     bracketNode = stmt.return_children()[0]
     stmtListNode = bracketNode.return_children()[0]
+
 
     threeAddressCode[functionScope][blockIndicator] = {}
     _create3AddressCodeForStmts(stmtListNode)
@@ -339,8 +368,16 @@ def _create3AddressCodeForElseStmt(stmt, blockIndicatorForIfStmts):
         if threeAddressCode[functionScope][previousBlock][stmt][0] == 'if':
             threeAddressCode[functionScope][previousBlock][stmt][4] = threeAddressCode[functionScope][previousBlock][stmt][4][0:5] + blockIndicatorForIfStmts + threeAddressCode[functionScope][previousBlock][stmt][4][7:19] + elseBracketIndicator
 
-    blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
-    threeAddressCode[functionScope][blockIndicator] = {}
+    if threeAddressCode[functionScope][blockIndicator] != {}:
+        blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
+        threeAddressCode[functionScope][blockIndicator] = {}
+    
+    _returnFinderForFlowGraph(elseBracketIndicator)
+
+    flowGraph.add_edge(previousBlock, elseBracketIndicator)
+
+    _returnFinderForFlowGraph(blockIndicatorForIfStmts)
+
 
 #Creates 3 address code for brackets in if statements
 def _create3AddressCodeForBracketsInIf(stmt):
@@ -348,6 +385,7 @@ def _create3AddressCodeForBracketsInIf(stmt):
     global functionScope
     global blockIndicator
     global addrIndex
+    global flowGraph
 
     stmtListNode = stmt.return_children()[0]
 
@@ -355,10 +393,12 @@ def _create3AddressCodeForBracketsInIf(stmt):
 
     blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1) #Adding one to our block indicator
     threeAddressCode[functionScope][blockIndicator] = {}
+
+    flowGraph.add_edge(ifStmtBlock, blockIndicator)
+
     blockIndicatorForIfStmts = blockIndicator
 
     _create3AddressCodeForStmts(stmtListNode)
-
 
     for stmt in threeAddressCode[functionScope][ifStmtBlock]:
         if threeAddressCode[functionScope][ifStmtBlock][stmt][0] == 'if':
@@ -366,6 +406,13 @@ def _create3AddressCodeForBracketsInIf(stmt):
     
 
     blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1) #Adding one to our block indicator
+
+    _returnFinderForFlowGraph(blockIndicatorForIfStmts)
+
+    flowGraph.add_edge(ifStmtBlock, blockIndicatorForIfStmts)
+    
+    flowGraph.add_edge(ifStmtBlock, blockIndicator)
+
     threeAddressCode[functionScope][blockIndicator] = {}
     return blockIndicatorForIfStmts
 
@@ -451,6 +498,10 @@ def _create3AddressCodeForWhileStmt(whileStmtNode):
     global functionScope
     global blockIndicator
     global addrIndex
+    global flowGraph
+
+    flowGraph.add_edge(blockIndicator, 'L' + str(int(blockIndicator[1:]) + 1))
+
 
     children = whileStmtNode.return_children()
 
@@ -460,19 +511,22 @@ def _create3AddressCodeForWhileStmt(whileStmtNode):
         if childValue == '()':
 
             temporaryDict = _create3AddressCodeForstmtParens(child)
+            overWrite = False
+            if threeAddressCode[functionScope][blockIndicator] != {}:#Same as if statement with checking if the previous block had something in it.
+                blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
+                threeAddressCode[functionScope][blockIndicator] = {}
+                overWrite = True
+
             for val in list(temporaryDict):
+
                 if temporaryDict[val][0] != 'if':
                     threeAddressCode[functionScope][blockIndicator][val] = temporaryDict[val]
 
                 else:
-                    if threeAddressCode[functionScope][blockIndicator] != {}:#Same as if statement with checking if the previous block had something in it.
-                        blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
-                        threeAddressCode[functionScope][blockIndicator] = {}
+                    if overWrite == True:
                         temporaryDict[val][4] = 'goto L' + str(int(blockIndicator[1:]) + 1)
-
                     addrIndexForWhile = addrIndex-1#We want to know what the address index is for the if statement. We will use this to create the goto statement for the while loop.
                     blockAddressForWhile = blockIndicator #along with block Address
-                    threeAddressCode[functionScope][blockIndicator] = {}
                     threeAddressCode[functionScope][blockIndicator][val] = temporaryDict[val]
 
         elif childValue == '{ }':
@@ -489,6 +543,7 @@ def _creating3AddressCodeForBracketsInWhile(child, addrIndexForWhile, blockAddre
 
     blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
     threeAddressCode[functionScope][blockIndicator] = {}
+    flowGraph.add_edge(blockAddressForWhile, blockIndicator)
 
     _create3AddressCodeForStmts(stmtListNode)
 
@@ -501,8 +556,12 @@ def _creating3AddressCodeForBracketsInWhile(child, addrIndexForWhile, blockAddre
                                                                                         ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][3]
                                                                                         ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][4][0:7] 
                                                                                         + ', else goto L' + str(int(blockIndicator[1:]) + 1)] # We are overwriting the previous while statement. This is so the goto will be correct no matter what is within the stmts of the while loop
+    flowGraph.add_edge(blockIndicator, blockAddressForWhile)
 
     blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
+
+    _returnFinderForFlowGraph(blockAddressForWhile)
+
     threeAddressCode[functionScope][blockIndicator] = {}
 
         
@@ -584,4 +643,22 @@ def _create3AddressCodeForAssignStmt(assignStmtNode):
         
    
     threeAddressCode[functionScope][blockIndicator].update(temporaryDict)
+
+
+
+
+
+def _returnFinderForFlowGraph(blockIndicatorForIfStmts):
+    global threeAddressCode
+    global flowGraph
+    global functionScope
+    global blockIndicator
+
+    returnFound = False
+    for key, line in threeAddressCode[functionScope][blockIndicatorForIfStmts].items():
+        if line[-1] == 'return':
+           returnFound = True
+
+    if returnFound == False:
+        flowGraph.add_edge(blockIndicatorForIfStmts, blockIndicator)
     

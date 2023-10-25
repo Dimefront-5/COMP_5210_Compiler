@@ -26,7 +26,6 @@ char choice2 (int i, char c) {
     while (i - 1 < 10) {
         if ( i == 0){
             return 'c';
-
         }
         else {
             while (i < 5) {

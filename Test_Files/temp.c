@@ -1,3 +1,10 @@
-int main(int i){
-   int hello = 0 + 5 - 7 + (9 * 8) * 8 / 9;
+char main(int i){
+   int j = 5;
+   if ( i == 0){
+      j = 4;
+   }
+   else {
+      i = 4;
+   }
+   return 'c';
 }

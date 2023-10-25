@@ -15,3 +15,4 @@ COLUMN_NUMBER_INDEX = 3
 #Common things we reference
 exprOps = r'\+|\-|\/|\*'
 numbers = r'^[-+]?\d*\.?\d+$'
+identifiers = r'^[A-Za-z_][\w_]*$'

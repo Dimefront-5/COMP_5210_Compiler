@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 10/11/2023
+-@date: 10/25/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
@@ -16,10 +16,16 @@ import constantpropagation as cp
 import constantfolder as cf
 import deadcoderemoval as dcr
 import copypropagation as cpy
+import dominatorcreator as dc
 
 import argparse
 import sys
 import os
+import networkx as nx
+import matplotlib.pyplot as plt
+
+import warnings
+warnings.filterwarnings("ignore") #This is so we can ignore the matplotlib warning for using a deprecated extension
 
 
 # main function
@@ -49,7 +55,9 @@ def main():
         else:
             print(parsetree)
 
-    threeAddressCode = a3.converter(parsetree, symbolTable)
+    threeAddressCode, flowGraph = a3.converter(parsetree, symbolTable)
+
+    dominatorGraph = dc.dominationCreation(flowGraph)
 
     if args.a: #This is so we can print out the unoptimized code
         if threeAddressCode == None:
@@ -67,7 +75,7 @@ def main():
         print(error_output)
         sys.exit()
 
-    _printingOutput(args, output_for_tokens, symbolTable, optimizedThreeAddressCode, possibleInputFile)
+    _printingOutput(args, output_for_tokens, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph)
 
 #------ Inward Facing modules
 
@@ -82,8 +90,6 @@ def optimizerLoop(threeAddressCode):
         newthreeAdressCode, changed = cf.folder(newthreeAdressCode, changed)
         newthreeAdressCode, changed = dcr.deadCodeRemover(newthreeAdressCode, changed)
         newthreeAdressCode, changed = cpy.copyPropagator(newthreeAdressCode, changed)
-
-    newthreeAdressCode = _removingParamsFrom3AddrCode(newthreeAdressCode)
 
     return newthreeAdressCode
 
@@ -104,6 +110,10 @@ def _commandLineParser():
     parser.add_argument('-a', action="store_true", help='outputs the three address code of the input file')
 
     parser.add_argument('-o', action="store_true", help='outputs the optimized three address code of the input file')
+
+    parser.add_argument('-g', action="store_true", help='outputs the flow graph of the input file')
+
+    parser.add_argument('-d', action="store_true", help='outputs the dominator graph of the input file')
 
     args = parser.parse_args()
 
@@ -149,10 +159,7 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                 output += ' ' * indent + blockIndicator + ':\n'
                 indent += 3
                 for child, value in threeAddressCode[children][blockIndicator].items():
-                    if value[-1] == 'param':
-                        pass
-
-                    elif value[-1] == 'return':
+                    if value[-1] == 'return':
                         output += ' ' * indent + 'return ' + value[0] + '\n'
                             
                     elif value[-1] == 'expr':
@@ -197,35 +204,45 @@ def _removingCommentsFromDictionary(dictionary):
     return newDictionary
 
 
-def _printingOutput(args, output_for_tokens, symbolTable, optimizedCode, possibleInputFile):
+def _printingOutput(args, output_for_tokens, symbolTable, optimizedCode, flowGraph, dominatorGraphs):
     if args.t:
         print(output_for_tokens)
 
-    
-
-    if args.s:
-        if symbolTable == None:
-            print("Errors found in ", possibleInputFile, ":")
-            print("\tSyntax Error\n\n")
-            sys.exit()
-        else:
-            print(symbolTable)
+    if args.s:    
+        print(symbolTable)
 
     if args.o:
         output = _creatingOutputFor3AddressCode(optimizedCode)
         print(output)
 
+    if args.g:
+        overallFlowGraph = nx.DiGraph()
+        for key, value in flowGraph.items():
+            if len(value.nodes) > 1: #We don't care to print out graphs that only have one node
+                for edge in value.edges:
+                    overallFlowGraph.add_edge(key + ' ' + edge[0],key + ' ' + edge[1])
 
-def _removingParamsFrom3AddrCode(threeAddrCode):
-    for scope in list(threeAddrCode):
-        if isinstance(threeAddrCode[scope], dict):
-            for block in list(threeAddrCode[scope]):
-                for key, value in list(threeAddrCode[scope][block].items()):
-                    if value[-1] == 'param':
-                        threeAddrCode[scope][block].pop(key)
-    
-    return threeAddrCode
-    
+        pos = nx.nx_pydot.graphviz_layout(overallFlowGraph, prog="dot")
+        plt.title('flow graph')
+        nx.draw(overallFlowGraph, pos=pos, with_labels=True, node_size=5000, arrows=True)
+        plt.show()
+            
+
+    if args.d:
+        overallDominatorGraph = nx.DiGraph()
+        for key, value in dominatorGraphs.items():
+            if len(value.nodes) > 1:
+                for edge in value.edges:
+                    overallDominatorGraph.add_edge(key + ' ' + edge[0],key + ' ' + edge[1])
+
+        pos = nx.nx_pydot.graphviz_layout(overallDominatorGraph, prog="dot")
+        plt.title('dominator graph')
+        nx.draw(overallDominatorGraph, pos=pos, with_labels=True, node_size=5000, arrows=True)
+        plt.show()
+
+
+
+        
 
 if __name__ == "__main__":
     main()
