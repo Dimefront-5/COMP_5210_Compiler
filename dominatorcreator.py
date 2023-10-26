@@ -1,14 +1,11 @@
 '''
 -@author: Tyler Ray
--@date: 10/25/2023
+-@date: 10/26/2023
 
 - This file will take a block flow graph and create a dominator tree of the graph
 '''
 
-
-
 import networkx as nx
-import matplotlib.pyplot as plt
 
 
 def dominationCreation(flowGraph):
@@ -19,48 +16,55 @@ def dominationCreation(flowGraph):
 
 # ------ Inward Facing Modules
 
+#Walks through each controlFlowGrpah and creates a dominator graph for each one
 def _dominationCreationMainLoop(flowGraph):
     allGraphs = {}
 
     for graph in flowGraph:
         edges = []
-        dominatorGraph = _dominationCreationInit()
         for node in flowGraph[graph].nodes:
             for edge in flowGraph[graph].edges(node):
-                edges.append(list(edge))
+                edges.append(list(edge)) #Gets every edge in the graph
 
-        dominatorGraph.add_node('L0')
-        
-        for edge in edges:
-            if edge[0] == 'L0' and edge[1] == 'L1':
-                dominatorGraph.add_edge('L0', 'L1')
-
-            toNodeCandidate = edge[1]
-            FoundOtherEdge = False
-            if edge[0][1:] > toNodeCandidate[1:]:
-                FoundOtherEdge = True
-
-            for otherEdgesInNodes in edges:
-                if otherEdgesInNodes[1] == toNodeCandidate and otherEdgesInNodes[0] != edge[0] and otherEdgesInNodes[0][1:] < toNodeCandidate[1:]:
-                    FoundOtherEdge = True
-
-            if FoundOtherEdge == False and edge[0][1:] < toNodeCandidate[1:]:
-                dominatorGraph.add_edge(edge[0], toNodeCandidate)
-            
-            elif FoundOtherEdge == True and edge[0][1:] < toNodeCandidate[1:]:
-                in_edges = dominatorGraph.in_edges(edge[0])
-                for parentDominator in in_edges:
-                    if parentDominator[0] != 'L0':
-                        dominatorGraph.add_edge(parentDominator[0], toNodeCandidate)
-
-
-        for node in flowGraph[graph].nodes:
-            if node not in dominatorGraph.nodes:
-                dominatorGraph.add_edge('L0', node)
+        dominatorGraph = _creatingDominatorGraphFromEdges(flowGraph, graph, edges)
         
         allGraphs[graph] = dominatorGraph
 
     return allGraphs
+
+#Will take the edges and our flowGraph and create a dominator graph from it
+def _creatingDominatorGraphFromEdges(flowGraph, graph, edges):
+    dominatorGraph = _dominationCreationInit()
+    dominatorGraph.add_node('L0')
+
+    for edge in edges:
+        if edge[0] == 'L0' and edge[1] == 'L1':#This is the first edge in the graph, this will always be true if there are two nodes
+            dominatorGraph.add_edge('L0', 'L1')
+
+        toNodeCandidate = edge[1]
+        FoundOtherEdge = False
+        if edge[0][1:] > toNodeCandidate[1:]: #If the edge is going backwards in the graph, we don't want to add it
+            FoundOtherEdge = True
+
+        for otherEdgesInNodes in edges:
+            if otherEdgesInNodes[1] == toNodeCandidate and otherEdgesInNodes[0] != edge[0] and otherEdgesInNodes[0][1:] < toNodeCandidate[1:]: #If there is another edge going to the same node, we don't want to add it
+                FoundOtherEdge = True
+
+        if FoundOtherEdge == False and edge[0][1:] < toNodeCandidate[1:]:#if we didn't find another edge going to the same node, we want to say it is dominating it
+            dominatorGraph.add_edge(edge[0], toNodeCandidate)
+            
+        elif FoundOtherEdge == True and edge[0][1:] < toNodeCandidate[1:]:#If there are multiple edges going to the same node, we want to find the one that is dominating it, wil be dominating the other one
+            in_edges = dominatorGraph.in_edges(edge[0])
+            for parentDominator in in_edges:
+                if parentDominator[0] != 'L0':#ignore the first node
+                    dominatorGraph.add_edge(parentDominator[0], toNodeCandidate)
+
+    for node in flowGraph[graph].nodes:#This will add any nodes that aren't in the dominator graph
+        if node not in dominatorGraph.nodes:
+            dominatorGraph.add_edge('L0', node)
+
+    return dominatorGraph
+
     
 
 

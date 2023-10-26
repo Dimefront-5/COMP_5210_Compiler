@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 10/17/2023
+-@date: 10/26/2023
 
 - Will take a 3 address code representation and remove dead code from it
 '''
@@ -51,7 +51,7 @@ def _iteratingThroughBlock(block, deadCodeCandidates, threeAddrCode, blockName, 
 
     return deadCodeCandidates
 
-
+#Checks to see if the variables are used in the line, if they are, it will set the boolean to true
 def _areVariablesUsedInThisBlock(line, deadCodeCandidates):
     if line[-1] == 'param':
         deadCodeCandidates[line[0]] = [True, '', '', '']
@@ -64,25 +64,24 @@ def _areVariablesUsedInThisBlock(line, deadCodeCandidates):
         if line[1] in deadCodeCandidates:
             deadCodeCandidates[line[1]][0] = True
 
-
     elif line[-1] == 'decl':
         if line[1] in deadCodeCandidates:
             deadCodeCandidates[line[1]][0] = True
     else:
         if line[1] in deadCodeCandidates:
             deadCodeCandidates[line[1]][0] = True
-        elif re.match(cc.identifiers, line[1]):
+        elif re.match(cc.identifiers, line[1]): #We want to add the variable to the deadCodeCandidates if it isn't in there if it used in a if statement
             deadCodeCandidates[line[1]] = [True, '', '', '']
             
         if line[3] in deadCodeCandidates:
             deadCodeCandidates[line[3]][0] = True
 
-        elif re.match(cc.identifiers, line[3]):
+        elif re.match(cc.identifiers, line[3]): #We want to add the variable to the deadCodeCandidates if it isn't in there if it used in a if statement
             deadCodeCandidates[line[3]] = [True, '', '', '']
     
     return deadCodeCandidates
 
-
+#Removes every line that is dead code
 def _removingDeadCode(threeAddrCode, deadCodeCandidates):
     changed = False
     for key, value in deadCodeCandidates.items():

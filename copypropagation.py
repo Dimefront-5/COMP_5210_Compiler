@@ -7,6 +7,9 @@
 
 
 
+from calendar import c
+
+
 def copyPropagator(threeAddrCode, changed):
     threeAddrCode, potentialChange = _copyPropagatorMainLoop(threeAddrCode)
 
@@ -23,10 +26,9 @@ def copyPropagator(threeAddrCode, changed):
 #Iterates through each block in our 3 address code and calls the copy propagation function on it
 
 def _copyPropagatorMainLoop(threeAddrCode):
-    
     changed = False
     for scope in threeAddrCode:
-        variables = {}
+        variables = {}#We create a dictionary that holds every variable we find in the code and what is assigned to
         if isinstance(threeAddrCode[scope], dict): #Want to make sure we ignore global variables
             for block in threeAddrCode[scope]:
                 variables, potentialChange = _copyPropagatorBlock(threeAddrCode[scope][block], changed, variables)
@@ -51,24 +53,30 @@ def _copyPropagatorBlock(block, changed, variables):
         
         elif line[-1] == 'assign':
             if line[2] == 'assign':
-                pass
+                line, potentialChange = _isThisBeingAssignedToAnotherVariable(line, variables)
+
+                block[key] = line
+
+                if changed == False:
+                    changed = potentialChange
+
             else:
                 variables[line[0]] = [line[1], line[2], line[3]]
   
-
     return variables, changed
 
 
-
+#Is the variable it is assigned to being assigned to another variable?
 def _isThisBeingAssignedToAnotherVariable(line, variables):
     changed = False
+
     if line[1] in variables:
         line = [line[0], variables[line[1]][0], variables[line[1]][1], variables[line[1]][2], line[-1]]
         variables[line[0]] = [line[1], line[2], line[3]]
         changed = True
-    
     else:
         changed = False
+
     return line, changed
         
     

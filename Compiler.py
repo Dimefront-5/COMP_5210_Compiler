@@ -231,7 +231,7 @@ def _printingOutput(args, output_for_tokens, symbolTable, optimizedCode, flowGra
         if len(overallFlowGraph.nodes) == 0:
             print("No flow graph to print out")
         else:
-            pos = nx.nx_pydot.graphviz_layout(overallFlowGraph, prog="dot")
+            pos = nx.nx_pydot.graphviz_layout(overallFlowGraph, prog="dot")#I reused this from Oxide
             plt.title('flow graph')
             nx.draw(overallFlowGraph, pos=pos, with_labels=True, node_size=5000, arrows=True)
             plt.show()
@@ -246,14 +246,11 @@ def _printingOutput(args, output_for_tokens, symbolTable, optimizedCode, flowGra
         if len(overallDominatorGraph.nodes) == 0:
             print("No dominator graph to print out")
         else:
-            pos = nx.nx_pydot.graphviz_layout(overallDominatorGraph, prog="dot")
+            pos = nx.nx_pydot.graphviz_layout(overallDominatorGraph, prog="dot") #I reused this from Oxide
             plt.title('dominator graph')
             nx.draw(overallDominatorGraph, pos=pos, with_labels=True, node_size=5000, arrows=True)
             plt.show()
 
-
-
-        
 
 if __name__ == "__main__":
     main()
