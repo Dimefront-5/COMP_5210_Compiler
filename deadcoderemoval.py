@@ -19,6 +19,7 @@ def deadCodeRemover(threeAddrCode, changed):
 #------ Inward Facing modules
 
 def _iteratingThroughCode(threeAddrCode):
+    changed = False
     #deadCodeCandidates looks for variables that aren't used in the code. The key is the variable name and the value is a boolean that is true if the variable is used and false if it isn't along with the block and the addrIndex
     for scope in threeAddrCode:
         deadCodeCandidates = {}

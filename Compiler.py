@@ -17,6 +17,7 @@ import constantfolder as cf
 import deadcoderemoval as dcr
 import copypropagation as cpy
 import dominatorcreator as dc
+import invarientlifter as il
 
 import argparse
 import sys
@@ -68,7 +69,7 @@ def main():
             output = _creatingOutputFor3AddressCode(threeAddressCode)
             print(output)
 
-    optimizedThreeAddressCode = optimizerLoop(threeAddressCode) #This is where we will call the optimizer, for the ungraded checkpoint ignore this
+    optimizedThreeAddressCode = optimizerLoop(threeAddressCode, flowGraph, dominatorGraph) #This is where we will call the optimizer, for the ungraded checkpoint ignore this
 
     if error_output != "":
         print("Errors found in ", possibleInputFile, ":\n\n")
@@ -79,17 +80,20 @@ def main():
 
 #------ Inward Facing modules
 
-def optimizerLoop(threeAddressCode):
+def optimizerLoop(threeAddressCode, flowGraph, dominatorGraph):
     newthreeAdressCode, changed = cp.propagator(threeAddressCode)
     newthreeAdressCode, changed = cf.folder(newthreeAdressCode, changed)
     newthreeAdressCode, changed = dcr.deadCodeRemover(newthreeAdressCode, changed)
     newthreeAdressCode, changed = cpy.copyPropagator(newthreeAdressCode, changed)
+    #newthreeAdressCode, changed = il.invariantLifter(newthreeAdressCode, changed, flowGraph, dominatorGraph)
+
 
     while changed == True:
         newthreeAdressCode, changed = cp.propagator(newthreeAdressCode)
         newthreeAdressCode, changed = cf.folder(newthreeAdressCode, changed)
         newthreeAdressCode, changed = dcr.deadCodeRemover(newthreeAdressCode, changed)
         newthreeAdressCode, changed = cpy.copyPropagator(newthreeAdressCode, changed)
+        #newthreeAdressCode, changed = il.invariantLifter(newthreeAdressCode, changed, flowGraph, dominatorGraph)
 
     return newthreeAdressCode
 
@@ -218,27 +222,34 @@ def _printingOutput(args, output_for_tokens, symbolTable, optimizedCode, flowGra
     if args.g:
         overallFlowGraph = nx.DiGraph()
         for key, value in flowGraph.items():
-            if len(value.nodes) > 1: #We don't care to print out graphs that only have one node
-                for edge in value.edges:
-                    overallFlowGraph.add_edge(key + ' ' + edge[0],key + ' ' + edge[1])
+            if len(value.nodes) == 1:
+                overallFlowGraph.add_node(key + ' ' + 'L0')
 
-        pos = nx.nx_pydot.graphviz_layout(overallFlowGraph, prog="dot")
-        plt.title('flow graph')
-        nx.draw(overallFlowGraph, pos=pos, with_labels=True, node_size=5000, arrows=True)
-        plt.show()
+            for edge in value.edges:
+                overallFlowGraph.add_edge(key + ' ' + edge[0],key + ' ' + edge[1])
+
+        if len(overallFlowGraph.nodes) == 0:
+            print("No flow graph to print out")
+        else:
+            pos = nx.nx_pydot.graphviz_layout(overallFlowGraph, prog="dot")
+            plt.title('flow graph')
+            nx.draw(overallFlowGraph, pos=pos, with_labels=True, node_size=5000, arrows=True)
+            plt.show()
             
 
     if args.d:
         overallDominatorGraph = nx.DiGraph()
         for key, value in dominatorGraphs.items():
-            if len(value.nodes) > 1:
-                for edge in value.edges:
-                    overallDominatorGraph.add_edge(key + ' ' + edge[0],key + ' ' + edge[1])
-
-        pos = nx.nx_pydot.graphviz_layout(overallDominatorGraph, prog="dot")
-        plt.title('dominator graph')
-        nx.draw(overallDominatorGraph, pos=pos, with_labels=True, node_size=5000, arrows=True)
-        plt.show()
+            for edge in value.edges:
+                overallDominatorGraph.add_edge(key + ' ' + edge[0],key + ' ' + edge[1])
+        
+        if len(overallDominatorGraph.nodes) == 0:
+            print("No dominator graph to print out")
+        else:
+            pos = nx.nx_pydot.graphviz_layout(overallDominatorGraph, prog="dot")
+            plt.title('dominator graph')
+            nx.draw(overallDominatorGraph, pos=pos, with_labels=True, node_size=5000, arrows=True)
+            plt.show()
 
 
 
