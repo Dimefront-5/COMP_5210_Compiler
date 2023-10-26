@@ -85,7 +85,7 @@ def optimizerLoop(threeAddressCode, flowGraph, dominatorGraph):
     newthreeAdressCode, changed = cf.folder(newthreeAdressCode, changed)
     newthreeAdressCode, changed = dcr.deadCodeRemover(newthreeAdressCode, changed)
     newthreeAdressCode, changed = cpy.copyPropagator(newthreeAdressCode, changed)
-    #newthreeAdressCode, changed = il.invariantLifter(newthreeAdressCode, changed, flowGraph, dominatorGraph)
+    newthreeAdressCode, changed = il.invariantLifter(newthreeAdressCode, changed, flowGraph, dominatorGraph)
 
 
     while changed == True:
@@ -93,7 +93,7 @@ def optimizerLoop(threeAddressCode, flowGraph, dominatorGraph):
         newthreeAdressCode, changed = cf.folder(newthreeAdressCode, changed)
         newthreeAdressCode, changed = dcr.deadCodeRemover(newthreeAdressCode, changed)
         newthreeAdressCode, changed = cpy.copyPropagator(newthreeAdressCode, changed)
-        #newthreeAdressCode, changed = il.invariantLifter(newthreeAdressCode, changed, flowGraph, dominatorGraph)
+        newthreeAdressCode, changed = il.invariantLifter(newthreeAdressCode, changed, flowGraph, dominatorGraph)
 
     return newthreeAdressCode
 
