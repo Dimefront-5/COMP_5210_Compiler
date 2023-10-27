@@ -2,7 +2,9 @@ int main(int x) {
 
     int j = x + 1;
 
-    int k = j;
+    int k;
+
+    k = j;
 
     return k;
 

@@ -43,16 +43,22 @@ def _creatingDominatorGraphFromEdges(flowGraph, graph, edges):
 
         toNodeCandidate = edge[1]
         FoundOtherEdge = False
+        PointToEachOther = False
         if edge[0][1:] > toNodeCandidate[1:]: #If the edge is going backwards in the graph, we don't want to add it
             FoundOtherEdge = True
 
         for otherEdgesInNodes in edges:
             if otherEdgesInNodes[1] == toNodeCandidate and otherEdgesInNodes[0] != edge[0] and otherEdgesInNodes[0][1:] < toNodeCandidate[1:]: #If there is another edge going to the same node, we don't want to add it
                 FoundOtherEdge = True
+                if flowGraph[graph].has_edge(edge[0], otherEdgesInNodes[0]) == True:
+                    PointToEachOther = True
 
         if FoundOtherEdge == False and edge[0][1:] < toNodeCandidate[1:]:#if we didn't find another edge going to the same node, we want to say it is dominating it
             dominatorGraph.add_edge(edge[0], toNodeCandidate)
-            
+        
+        elif PointToEachOther == True: #If one node points to one and then the one after, we want to add the edge
+            dominatorGraph.add_edge(edge[0], toNodeCandidate)
+
         elif FoundOtherEdge == True and edge[0][1:] < toNodeCandidate[1:]:#If there are multiple edges going to the same node, we want to find the one that is dominating it, wil be dominating the other one
             in_edges = dominatorGraph.in_edges(edge[0])
             for parentDominator in in_edges:

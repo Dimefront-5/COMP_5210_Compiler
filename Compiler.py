@@ -48,14 +48,6 @@ def main():
 
     parsetree, symbolTable = ps.parser(tokens)
 
-    if args.p:
-        if parsetree == None:
-           print("Errors found in ", possibleInputFile, ":")
-           print("\tSyntax Error\n\n")
-           sys.exit()
-        else:
-            print(parsetree)
-
     threeAddressCode, flowGraph = a3.converter(parsetree, symbolTable)
 
     dominatorGraph = dc.dominationCreation(flowGraph)
@@ -76,7 +68,7 @@ def main():
         print(error_output)
         sys.exit()
 
-    _printingOutput(args, output_for_tokens, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph)
+    _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph)
 
 #------ Inward Facing modules
 
@@ -208,9 +200,12 @@ def _removingCommentsFromDictionary(dictionary):
     return newDictionary
 
 
-def _printingOutput(args, output_for_tokens, symbolTable, optimizedCode, flowGraph, dominatorGraphs):
+def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCode, flowGraph, dominatorGraphs):
     if args.t:
         print(output_for_tokens)
+
+    if args.p:
+        print(parsetree)
 
     if args.s:    
         print(symbolTable)
