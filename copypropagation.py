@@ -1,13 +1,9 @@
 '''
 -@author: Tyler Ray
--@date: 10/17/2023
+-@date: 10/31/2023
 
 - Will take a 3 address code representation and perform copy propagation on it
 '''
-
-
-
-from calendar import c
 
 
 def copyPropagator(threeAddrCode, changed):
@@ -40,7 +36,7 @@ def _copyPropagatorMainLoop(threeAddrCode):
 
 
 
-
+#Iterates through the block and performs copy propagation on it
 def _copyPropagatorBlock(block, changed, variables):
     for key, line in block.items():
         if line[-1] == 'decl':
@@ -60,7 +56,7 @@ def _copyPropagatorBlock(block, changed, variables):
                 if changed == False:
                     changed = potentialChange
 
-            else:
+            else:#If it is a expression, we will at this to a list of variables. 
                 variables[line[0]] = [line[1], line[2], line[3]]
   
     return variables, changed
@@ -70,7 +66,7 @@ def _copyPropagatorBlock(block, changed, variables):
 def _isThisBeingAssignedToAnotherVariable(line, variables):
     changed = False
 
-    if line[1] in variables:
+    if line[1] in variables:#if the varibale it is being assigned to is in our dictionary, we want to change it to what it is assigned to
         line = [line[0], variables[line[1]][0], variables[line[1]][1], variables[line[1]][2], line[-1]]
         variables[line[0]] = [line[1], line[2], line[3]]
         changed = True

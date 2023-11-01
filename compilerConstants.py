@@ -16,3 +16,4 @@ COLUMN_NUMBER_INDEX = 3
 exprOps = r'\+|\-|\/|\*'
 numbers = r'^[-+]?\d*\.?\d+$'
 identifiers = r'^[A-Za-z_][\w_]*$'
+relOps = r'\<|\>|\<=|\>=|\=\=|\!\='

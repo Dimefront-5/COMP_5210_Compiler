@@ -2,7 +2,7 @@
 -@author: Tyler Ray
 -@date: 10/26/2023
 
-- Will take a 3 address code representation and remove invariant loops from it
+- Will take a 3 address code representation and remove invariants from loops
 '''
 import compilerconstants as cc
 import re

@@ -34,7 +34,7 @@ def _constantFoldingMainLoop(threeAddrCode):
 def _constantFoldingBlock(block, changed):
     newBlock = {}
     for index, stmt in block.items():
-        if (stmt[-1] == 'decl' or stmt[-1] == 'assign') and len(stmt) == 5: #Only stmts with 5 length can be constant folded
+        if (stmt[-1] == 'decl' or stmt[-1] == 'assign') and len(stmt) == 5: #Only lines with 5 length can be constant folded since it will be a constant, operator, constant
             stmt, potentialChange = _checkingForConstants(stmt)
             newBlock[index] = stmt
             if changed == False:#We don't want to overwrite changed if it is already true
@@ -58,7 +58,7 @@ def _checkingForConstants(stmt):
 
 #Performs the constant folding
 def _foldTheConstants(constant1, operation, constant2):
-    if operation != '==':
+    if re.match(cc.relOps, operation) == None: #If it isn't used in a if statement
         evalString = constant1 + operation + constant2
         evaluatedNumber = eval(evalString)
         return str(evaluatedNumber)

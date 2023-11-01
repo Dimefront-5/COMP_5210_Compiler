@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 10/26/2023
+-@date: 10/31/2023
 
 - Will take a 3 address code representation and remove dead code from it
 '''
@@ -60,7 +60,7 @@ def _areVariablesUsedInThisBlock(line, deadCodeCandidates):
         if line[0] in deadCodeCandidates:
             deadCodeCandidates[line[0]][0] = True
 
-    elif line[-1] == 'assign': #Doesn't have a operator meaning it is a single assignment
+    elif line[-1] == 'assign' and line[2] == 'assign': #Doesn't have a operator meaning it is a single assignment
         if line[1] in deadCodeCandidates:
             deadCodeCandidates[line[1]][0] = True
 

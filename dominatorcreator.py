@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 10/26/2023
+-@date: 10/31/2023
 
 - This file will take a block flow graph and create a dominator tree of the graph
 '''
@@ -36,10 +36,12 @@ def _dominationCreationMainLoop(flowGraph):
 def _creatingDominatorGraphFromEdges(flowGraph, graph, edges):
     dominatorGraph = _dominationCreationInit()
     dominatorGraph.add_node('L0')
-
+    if len(edges) == 0:
+        return dominatorGraph
+    firstnode = edges[0][0]
     for edge in edges:
-        if edge[0] == 'L0' and edge[1] == 'L1':#This is the first edge in the graph, this will always be true if there are two nodes
-            dominatorGraph.add_edge('L0', 'L1')
+        if edge[0] == firstnode:
+            dominatorGraph.add_edge(firstnode, edge[1])
 
         toNodeCandidate = edge[1]
         FoundOtherEdge = False
@@ -62,19 +64,14 @@ def _creatingDominatorGraphFromEdges(flowGraph, graph, edges):
         elif FoundOtherEdge == True and edge[0][1:] < toNodeCandidate[1:]:#If there are multiple edges going to the same node, we want to find the one that is dominating it, wil be dominating the other one
             in_edges = dominatorGraph.in_edges(edge[0])
             for parentDominator in in_edges:
-                if parentDominator[0] != 'L0':#ignore the first node
+                if parentDominator[0] != firstnode:#ignore the first node
                     dominatorGraph.add_edge(parentDominator[0], toNodeCandidate)
 
     for node in flowGraph[graph].nodes:#This will add any nodes that aren't in the dominator graph
         if node not in dominatorGraph.nodes:
-            dominatorGraph.add_edge('L0', node)
+            dominatorGraph.add_edge(firstnode, node)
 
     return dominatorGraph
-
-    
-
-
-
 
 def _dominationCreationInit():
     dominatorGraph = nx.DiGraph()

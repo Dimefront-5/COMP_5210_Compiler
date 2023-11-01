@@ -7,6 +7,7 @@
 
 import re
 import matplotlib.pyplot as plt
+from numpy import block
 
 import compilerconstants as cc
 
@@ -43,12 +44,15 @@ def converter(AST, SymbolTable):
     global threeAddressCode
     global symbolTable 
     global flowGraph
+    global blockIndicator
 
     symbolTable = SymbolTable
 
     declList = AST.return_children() #Grabbing the decl list node
 
     eachDecl = declList[0].return_children() #Grabbing each individual decleration.
+
+    blockIndicator = 'L0'
 
     eachGraph = _iteratingThroughMainDecls(eachDecl)
 
@@ -114,37 +118,12 @@ def _createFunctionInAddressCode(idNode):
     if len(idNode.return_children()) > 1: #If the decleration is a variable, we only have the value returned.
         functionScope = idName
         threeAddressCode[idName] = idNode.return_children()[1].return_value()
-        blockIndicator = 'L0'
     else:#Is it a function?
         threeAddressCode[idName] = {}
         functionScope = idName
-        blockIndicator = 'L0'
+        blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
         threeAddressCode[functionScope][blockIndicator] = {}
 
-#Not currently used, we are going to ignore the args for now
-
-'''def _create3AddressCodeForArgs(argsNode):
-    global threeAddressCode
-    global functionScope
-    global addrIndex
-    global blockIndicator
-
-    temporaryDict = {}
-
-    args = argsNode.return_children()
-
-    args = list(reversed(args)) # To get the order correct
-
-    for arg in args:
-        argID = arg.return_children()
-        if isinstance(argID, list) and argID != []:
-            argTypeValue = arg.return_value()
-            argIDValue = argID[0].return_value()
-
-            temporaryDict[addrIndex] = [argIDValue, argTypeValue, 'param'] #We are just going to set the value to param. When we print it out, it will be the param and then the id. But we can't use param as multiple keys
-            addrIndex += 1
-
-    threeAddressCode[functionScope][blockIndicator] = temporaryDict'''
 
 #Walks through each local decl
 def  _create3AddressCodeForLocalDecls(localDeclsNode):
@@ -366,7 +345,8 @@ def _create3AddressCodeForElseStmt(stmt, blockIndicatorForIfStmts):
 
     for stmt in threeAddressCode[functionScope][previousBlock]:
         if threeAddressCode[functionScope][previousBlock][stmt][0] == 'if':
-            threeAddressCode[functionScope][previousBlock][stmt][4] = threeAddressCode[functionScope][previousBlock][stmt][4][0:5] + blockIndicatorForIfStmts + threeAddressCode[functionScope][previousBlock][stmt][4][7:19] + elseBracketIndicator
+            threeAddressCode[functionScope][previousBlock][stmt][5] = blockIndicatorForIfStmts[1:]
+            threeAddressCode[functionScope][previousBlock][stmt][7] = str(int(blockIndicator[1:]))
 
     if threeAddressCode[functionScope][blockIndicator] != {}:
         blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)
@@ -402,7 +382,8 @@ def _create3AddressCodeForBracketsInIf(stmt):
 
     for stmt in threeAddressCode[functionScope][ifStmtBlock]:
         if threeAddressCode[functionScope][ifStmtBlock][stmt][0] == 'if':
-            threeAddressCode[functionScope][ifStmtBlock][stmt][4] = threeAddressCode[functionScope][ifStmtBlock][stmt][4][0:5] + blockIndicatorForIfStmts + threeAddressCode[functionScope][ifStmtBlock][stmt][4][7:19] + 'L' + str(int(blockIndicator[1:]) + 1)
+            threeAddressCode[functionScope][ifStmtBlock][stmt][5] = blockIndicatorForIfStmts[1:]
+            threeAddressCode[functionScope][ifStmtBlock][stmt][7] = str(int(blockIndicator[1:]) + 1)
     
 
     blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1) #Adding one to our block indicator
@@ -435,8 +416,7 @@ def _create3AddressCodeForstmtParens(parenNode):
         elif operatorValue == '||' or operatorValue == '&&':
             temporaryDict = _create3AddressCodeForstmtParens(operator)
             temporaryDict = _create3AddrForMultipleRelOps(temporaryDict)
-            temporaryDict[addrIndex] = ['if', temporaryDict[addrIndex - 2][0], operatorValue, temporaryDict[addrIndex - 1][0], temporaryDict[addrIndex-3][4]]#creating a if statement for each expression.
-
+            temporaryDict[addrIndex] = ['if', temporaryDict[addrIndex - 2][0], operatorValue, temporaryDict[addrIndex - 1][0], temporaryDict[addrIndex-3][4], temporaryDict[addrIndex-3][5], temporaryDict[addrIndex-3][6], temporaryDict[addrIndex-3][7]]#creating a if statement for each expression.
             addrIndex += 1
 
     return temporaryDict        
@@ -487,7 +467,7 @@ def _parseRelOpSides(operator):
         index += 1
 
     
-    temporaryDict[addrIndex] = ['if', firstExpr, operator.return_value(), secondExpr, 'goto L' + str(int(blockIndicator[1:]) + 1) + ', else goto L' + str(int(blockIndicator[1:]) + 2)]
+    temporaryDict[addrIndex] = ['if', firstExpr, operator.return_value(), secondExpr, 'goto L', str(int(blockIndicator[1:]) + 1), ', else goto L', str(int(blockIndicator[1:]) + 2)]
     addrIndex += 1
 
     return temporaryDict
@@ -554,8 +534,10 @@ def _creating3AddressCodeForBracketsInWhile(child, addrIndexForWhile, blockAddre
                                                                                         ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][1]
                                                                                         ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][2]
                                                                                         ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][3]
-                                                                                        ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][4][0:7] 
-                                                                                        + ', else goto L' + str(int(blockIndicator[1:]) + 1)] # We are overwriting the previous while statement. This is so the goto will be correct no matter what is within the stmts of the while loop
+                                                                                        ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][4]
+                                                                                        ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][5]
+                                                                                        ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][6]
+                                                                                        ,str(int(blockIndicator[1:]) + 1)] # We are overwriting the previous while statement. This is so the goto will be correct no matter what is within the stmts of the while loop
     flowGraph.add_edge(blockIndicator, blockAddressForWhile)
 
     blockIndicator = blockIndicator[:1] + str(int(blockIndicator[1:]) + 1)

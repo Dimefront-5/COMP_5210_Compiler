@@ -1,11 +1,11 @@
 '''
 -@author: Tyler Ray
--@date: 10/25/2023
+-@date: 10/31/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
 - ***WORK IN PROGRESS***
-- Finished: Tokenizer, Parser, 3 Address Code Generator
+- Finished: Tokenizer, Parser, 3 Address Code Generator, optimizer
 '''
 
 import tokenizer as tk
@@ -44,13 +44,16 @@ def main():
 
     output_for_tokens, error_output = _tokenOutputFormatter(tokens) #We want to print out the tokens before we remove comments
 
+    if error_output != "":
+        print("Errors found in ", possibleInputFile, ":\n\n")
+        print(error_output)
+        sys.exit()
+
     tokens = _removingCommentsFromDictionary(tokens) #We want to remove comments before we start to parse, that way it won't mess with our language
 
     parsetree, symbolTable = ps.parser(tokens)
 
     threeAddressCode, flowGraph = a3.converter(parsetree, symbolTable)
-
-    dominatorGraph = dc.dominationCreation(flowGraph)
 
     if args.a: #This is so we can print out the unoptimized code
         if threeAddressCode == None:
@@ -61,12 +64,9 @@ def main():
             output = _creatingOutputFor3AddressCode(threeAddressCode)
             print(output)
 
-    optimizedThreeAddressCode = optimizerLoop(threeAddressCode, flowGraph, dominatorGraph) #This is where we will call the optimizer, for the ungraded checkpoint ignore this
+    dominatorGraph = dc.dominationCreation(flowGraph)
 
-    if error_output != "":
-        print("Errors found in ", possibleInputFile, ":\n\n")
-        print(error_output)
-        sys.exit()
+    optimizedThreeAddressCode = optimizerLoop(threeAddressCode, flowGraph, dominatorGraph) #This is where we will call the optimizer, for the ungraded checkpoint ignore this
 
     _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph)
 
@@ -165,7 +165,8 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                         output += ' ' * indent + value[0] + '\n'
 
                     elif value[0] == 'if':
-                        output += ' ' * indent + 'if (' + value[1]  + ' ' + value[2] + ' ' + value[3] + ') ' + value[4] + '\n'
+                        print(value)
+                        output += ' ' * indent + 'if (' + value[1]  + ' ' + value[2] + ' ' + value[3] + ') ' + value[4] + value[5] + value[6] + value[7] +'\n'
 
                     elif len(value) == 4 and value[3] == 'decl':
                         if value[1] != '':
@@ -218,17 +219,19 @@ def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCo
         overallFlowGraph = nx.DiGraph()
         for key, value in flowGraph.items():
             if len(value.nodes) == 1:
-                overallFlowGraph.add_node(key + ' ' + 'L0')
+                nodes = value.nodes
+                for node in nodes:
+                    overallFlowGraph.add_node(node)
 
             for edge in value.edges:
-                overallFlowGraph.add_edge(key + ' ' + edge[0],key + ' ' + edge[1])
+                overallFlowGraph.add_edge(edge[0],edge[1])
 
         if len(overallFlowGraph.nodes) == 0:
             print("No flow graph to print out")
         else:
             pos = nx.nx_pydot.graphviz_layout(overallFlowGraph, prog="dot")#I reused this from Oxide
             plt.title('flow graph')
-            nx.draw(overallFlowGraph, pos=pos, with_labels=True, node_size=5000, arrows=True)
+            nx.draw(overallFlowGraph, pos=pos, with_labels=True, node_size=1200, arrows=True)
             plt.show()
             
 
@@ -236,14 +239,14 @@ def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCo
         overallDominatorGraph = nx.DiGraph()
         for key, value in dominatorGraphs.items():
             for edge in value.edges:
-                overallDominatorGraph.add_edge(key + ' ' + edge[0],key + ' ' + edge[1])
+                overallDominatorGraph.add_edge(edge[0],edge[1])
         
         if len(overallDominatorGraph.nodes) == 0:
             print("No dominator graph to print out")
         else:
             pos = nx.nx_pydot.graphviz_layout(overallDominatorGraph, prog="dot") #I reused this from Oxide
             plt.title('dominator graph')
-            nx.draw(overallDominatorGraph, pos=pos, with_labels=True, node_size=5000, arrows=True)
+            nx.draw(overallDominatorGraph, pos=pos, with_labels=True, node_size=1200, arrows=True)
             plt.show()
 
 
