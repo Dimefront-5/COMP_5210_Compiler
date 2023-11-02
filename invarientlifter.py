@@ -44,7 +44,13 @@ def _invariantLifterMainLoop(threeAddrCode, controlFlowGraph, dominatorGraph):
 
                         potentialInvarients = _invarientFinder(threeAddrCode, potentialInvarients, name, finalBlockInLoop, dominatingNodeWithinLoop)
 
-                        threeAddrCode, potentialChange = _invarientLifter(threeAddrCode, potentialInvarients, name, edge[1])
+                        blockToMoveTo = 'L' + str(int(edge[1][1:]) - 1)
+                        before = True
+                        if blockToMoveTo not in threeAddrCode[name]:
+                            blockToMoveTo = 'L' + str(int(finalBlockInLoop[1:]) + 1)
+                            before = False
+
+                        threeAddrCode, potentialChange = _invarientLifter(threeAddrCode, potentialInvarients, name, blockToMoveTo, before)
 
                         if changed == False:
                             changed = potentialChange
@@ -119,22 +125,26 @@ def _invarientFinder(threeAddrCode, potentialInvariants, scope, finalBlockInLoop
     return potentialInvariants
 
 #Lifts our invarients out of the loop
-def _invarientLifter(threeAddrCode, potentialInvariants, scope, blockToMoveTo):
+def _invarientLifter(threeAddrCode, potentialInvariants, scope, blockToMoveTo, before):
     changed = False
-    for variable, information in reversed(potentialInvariants.items()): #Reverse it so the instructions appear in the right order when we move them
+    for variable, information in (potentialInvariants.items()): #Reverse it so the instructions appear in the right order when we move them
 
         if information[0] == False: #We are reordering the lines so they appear in the right order and have the if statement at the end.
             #If I had used a list within a list, I could add it to the front, but I am using a dictionary so I have to add it to the back.
-            tempDict = {}
-            tempDict[information[3]] = threeAddrCode[scope][information[2]][information[3]]
+            if before == True:
+                threeAddrCode[scope][blockToMoveTo][information[3]] = threeAddrCode[scope][information[2]][information[3]]
+                threeAddrCode[scope][information[2]].pop(information[3])
+            else:
+                tempDict = {}
+                tempDict[information[3]] = threeAddrCode[scope][information[2]][information[3]]
 
-            for tempKey, tempLine in list(threeAddrCode[scope][blockToMoveTo].items()):
-                tempDict[tempKey] = tempLine
-                threeAddrCode[scope][blockToMoveTo].pop(tempKey)
+                for tempKey, tempLine in list(threeAddrCode[scope][blockToMoveTo].items()):
+                    tempDict[tempKey] = tempLine
+                    threeAddrCode[scope][blockToMoveTo].pop(tempKey)
 
-            threeAddrCode[scope][blockToMoveTo] = tempDict
+                threeAddrCode[scope][blockToMoveTo] = tempDict
 
-            threeAddrCode[scope][information[2]].pop(information[3])
-            changed = True
+                threeAddrCode[scope][information[2]].pop(information[3])
+                changed = True
 
     return threeAddrCode, changed

@@ -796,6 +796,7 @@ def _parseReturnStmtNumberAndID(tokens, first_number_index):
         globalisType = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], "global") #Checking to see if the variable is declared on a global or local scale at least.
         functionArguments = symbolTable.get_args(scope)
 
+        print(tokens[str(first_number_index)][cc.TOKEN_INDEX]in functionArguments)
         if globalisType != None:
             idType = globalisType
 
@@ -817,7 +818,7 @@ def _parseReturnStmtNumberAndID(tokens, first_number_index):
         _customError("Error: Invalid return type", tokens, index)
         
     #Does our scope type match the type of our variable, or are both of our types number types?
-    elif idType[0] == scope_type or (re.match(grammar['NumType'][0], idType[0]) and re.match(grammar['NumType'][0], scope_type)): #We are seeing if the type of our variable matches the return type of the function
+    elif idType == scope_type or (re.match(grammar['NumType'][0], idType[0]) and re.match(grammar['NumType'][0], scope_type)): #We are seeing if the type of our variable matches the return type of the function
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
             index += 1
             return returnValue
@@ -1042,19 +1043,20 @@ def _parseExprSetup(tokens):
 
     cutTokens = dict(cutTokens)
 
-    exprNode = _parsingExpr(cutTokens)
+    exprNode = _parsingExpr(cutTokens, finalIndex, tokens)
 
     if exprNode == None:
         return None
+    
     index = finalIndex + 1
 
     return exprNode
 
 
-def _parsingExpr(tokens):
+def _parsingExpr(tokens, finalIndex, uncutTokens):
     finalExprIndex, token_index = index_finder(tokens, ['+', '-'])
     if finalExprIndex == 0:
-        termNode = _parsingTerm(tokens)
+        termNode = _parsingTerm(tokens, finalIndex, uncutTokens)
         return termNode
 
     else:
@@ -1063,7 +1065,7 @@ def _parsingExpr(tokens):
         cutTokens = tokeList[0:finalExprIndex]
 
         cutTokens = dict(cutTokens)
-        termNode = _parsingExpr(cutTokens)
+        termNode = _parsingExpr(cutTokens, finalIndex, uncutTokens)
 
         addOpNode = ASTNode(tokens[token_index][cc.TOKEN_INDEX])
         addOpNode.add_child(termNode)
@@ -1074,16 +1076,16 @@ def _parsingExpr(tokens):
 
         cutTokens = dict(cutTokens)
 
-        exprNode = _parsingTerm(cutTokens)
+        exprNode = _parsingTerm(cutTokens, finalIndex, uncutTokens)
         addOpNode.add_child(exprNode)
 
         return addOpNode
 
 
-def _parsingTerm(tokens):
+def _parsingTerm(tokens, finalIndex, uncutTokens):
     finalTermIndex, key_index = index_finder(tokens, ['*', '/'])
     if finalTermIndex == 0:
-        factorNode = _parsingFactor(tokens)
+        factorNode = _parsingFactor(tokens, finalIndex, uncutTokens)
         return factorNode
     else:
         tokeList = list(tokens.items())
@@ -1092,7 +1094,7 @@ def _parsingTerm(tokens):
 
         cutTokens = dict(cutTokens)
 
-        termNode = _parsingTerm(cutTokens)
+        termNode = _parsingTerm(cutTokens, finalIndex, uncutTokens)
 
         mulOpNode = ASTNode(tokens[key_index][cc.TOKEN_INDEX])
         mulOpNode.add_child(termNode)
@@ -1103,44 +1105,61 @@ def _parsingTerm(tokens):
 
         cutTokens = dict(cutTokens)
 
-        exprNode = _parsingFactor(cutTokens)
+        exprNode = _parsingFactor(cutTokens, finalIndex, uncutTokens)
         
         mulOpNode.add_child(exprNode)
 
         return mulOpNode
     
-def _parsingFactor(tokens):
+def _parsingFactor(tokens, finalIndex, uncutTokens):
+
     if len(tokens) == 0:
         return None
     
     currentIndex = list(tokens.keys())[0]
+    nextIndex = str(int(currentIndex) + 1)
+    
     if tokens[currentIndex][cc.TOKEN_TYPE_INDEX] == 'identifier':
         isIdInFunction = symbolTable.get_type(tokens[currentIndex][cc.TOKEN_INDEX], scope)
         isIdInGlobal = symbolTable.get_type(tokens[currentIndex][cc.TOKEN_INDEX], "global")
         isIdInFunctionParams = symbolTable.get_args(scope)
-
+        
         if isIdInFunction != None or isIdInGlobal != None:
             factorNode = ASTNode(tokens[currentIndex][cc.TOKEN_INDEX])
+            if not int(currentIndex) == int(finalIndex) and not (uncutTokens[nextIndex][cc.TOKEN_TYPE_INDEX] == 'mulOP' or uncutTokens[nextIndex][cc.TOKEN_TYPE_INDEX] == 'addOP' or uncutTokens[nextIndex][cc.TOKEN_INDEX] == ')'):
+                _customError("Error: Invalid expression", uncutTokens, currentIndex)
+
             return factorNode
-        elif tokens[str(index)][cc.TOKEN_INDEX] in isIdInFunctionParams:
-            factorNode = ASTNode(tokens[currentIndex][cc.TOKEN_INDEX])  
+        elif tokens[currentIndex][cc.TOKEN_INDEX] in isIdInFunctionParams:
+            factorNode = ASTNode(tokens[currentIndex][cc.TOKEN_INDEX])
+            
+            if not int(currentIndex) == int(finalIndex) and not (uncutTokens[nextIndex][cc.TOKEN_TYPE_INDEX] == 'mulOP' or uncutTokens[nextIndex][cc.TOKEN_TYPE_INDEX] == 'addOP' or uncutTokens[nextIndex][cc.TOKEN_INDEX] == ')'):
+                _customError("Error: Invalid expression", uncutTokens, currentIndex) 
+
             return factorNode
         else:
-            _customError("Error: Undeclared identifier", tokens, index)
+            _customError("Error: Undeclared identifier", uncutTokens, currentIndex)
     
     elif tokens[currentIndex][cc.TOKEN_TYPE_INDEX] == 'number':
         factorNode = ASTNode(tokens[currentIndex][cc.TOKEN_INDEX])
+        if not int(currentIndex) == int(finalIndex) and not (uncutTokens[nextIndex][cc.TOKEN_TYPE_INDEX] == 'mulOP' or uncutTokens[nextIndex][cc.TOKEN_TYPE_INDEX] == 'addOP' or uncutTokens[nextIndex][cc.TOKEN_INDEX] == ')'):
+            _customError("Error: Invalid expression", uncutTokens, currentIndex)
+
         return factorNode
     
     elif tokens[currentIndex][cc.TOKEN_INDEX] == '(':
         closingParenIndex = findClosingParenOfExpr(tokens)
         tokeList = list(tokens.items())
 
+        if closingParenIndex == None:
+            _customError("Error: Invalid expression, missing a \')\'", uncutTokens, currentIndex)
+
         cutTokens = tokeList[1:int(closingParenIndex)]
 
         cutTokens = dict(cutTokens)
 
-        factorNode = _parsingExpr(cutTokens)
+        factorNode = _parsingExpr(cutTokens, finalIndex, uncutTokens)
+
         parenNode = ASTNode('()')
         parenNode.add_child(factorNode)
         return parenNode
@@ -1149,8 +1168,8 @@ def _parsingFactor(tokens):
     
 
 def findClosingParenOfExpr(tokens):
-    global index
     number_of_open_paren = 0
+    listIndex = 0
     for keyIndex in tokens:
         if tokens[keyIndex][1] == "(":
             number_of_open_paren += 1
@@ -1159,7 +1178,8 @@ def findClosingParenOfExpr(tokens):
             number_of_open_paren -= 1
 
         if number_of_open_paren == 0:
-            return keyIndex
+            return listIndex
+        listIndex += 1
 
     return None
 

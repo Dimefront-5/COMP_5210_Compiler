@@ -201,6 +201,7 @@ def _create3AddressCodeForExpr(exprNode, temporaryDict):
     temporaryvariableName1 = None
     temporaryvariableName2 = None
 
+
     for child in exprChildren:
         childValue = child.return_value()
         if (re.match(cc.exprOps, childValue) or childValue == '()') and index == 0: #is the next child an expression?
@@ -504,7 +505,7 @@ def _create3AddressCodeForWhileStmt(whileStmtNode):
 
                 else:
                     if overWrite == True:
-                        temporaryDict[val][4] = 'goto L' + str(int(blockIndicator[1:]) + 1)
+                        temporaryDict[val][5] = str(int(blockIndicator[1:]) + 1)
                     addrIndexForWhile = addrIndex-1#We want to know what the address index is for the if statement. We will use this to create the goto statement for the while loop.
                     blockAddressForWhile = blockIndicator #along with block Address
                     threeAddressCode[functionScope][blockIndicator][val] = temporaryDict[val]
@@ -530,6 +531,7 @@ def _creating3AddressCodeForBracketsInWhile(child, addrIndexForWhile, blockAddre
     threeAddressCode[functionScope][blockIndicator][addrIndex] = ['goto L' + blockAddressForWhile[1:], "goto"] #For our final stmt in the block. This will return us back to the while if
     addrIndex += 1
 
+    print(threeAddressCode[functionScope][blockAddressForWhile])
     threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile] = ['if'
                                                                                         ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][1]
                                                                                         ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][2]
@@ -611,7 +613,7 @@ def _create3AddressCodeForAssignStmt(assignStmtNode):
         temporaryDict[addrIndex] = [declID, declValue, 'assign']
         addrIndex += 1      
     
-    elif child.return_value() == '*' or child.return_value() == '&':#Looking for pointers or memory addresses
+    elif (child.return_value() == '*' and len(child.return_children()) < 2) or child.return_value() == '&':#Looking for pointers or memory addresses
         secondchild = child.return_children()[0]
         declValue = child.return_value() + secondchild.return_value()
         temporaryDict[addrIndex] = [declID, declValue, 'assign']

@@ -165,7 +165,6 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                         output += ' ' * indent + value[0] + '\n'
 
                     elif value[0] == 'if':
-                        print(value)
                         output += ' ' * indent + 'if (' + value[1]  + ' ' + value[2] + ' ' + value[3] + ') ' + value[4] + value[5] + value[6] + value[7] +'\n'
 
                     elif len(value) == 4 and value[3] == 'decl':
