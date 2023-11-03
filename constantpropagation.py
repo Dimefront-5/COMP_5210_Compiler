@@ -73,6 +73,9 @@ def _checkingForConstant(variablesWithConstants, stmt, changed):
         stmt[1] = variablesWithConstants[stmt[1]]
         changed = True
 
+    if stmt[0] in variablesWithConstants:
+        del variablesWithConstants[stmt[0]]
+
     return stmt, changed
 
 

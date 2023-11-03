@@ -18,6 +18,7 @@ import deadcoderemoval as dcr
 import copypropagation as cpy
 import dominatorcreator as dc
 import invarientlifter as il
+import asmcodeshaper as asm
 
 import argparse
 import sys
@@ -56,38 +57,36 @@ def main():
     threeAddressCode, flowGraph = a3.converter(parsetree, symbolTable)
 
     if args.a: #This is so we can print out the unoptimized code
-        if threeAddressCode == None:
-            print("Errors found in ", possibleInputFile, ":")
-            print("\tSyntax Error\n\n")
-            sys.exit()
-        else:
-            output = _creatingOutputFor3AddressCode(threeAddressCode)
-            print(output)
+        output = _creatingOutputFor3AddressCode(threeAddressCode)
+        print("Unoptimized Three Address Code: ")
+        print(output)
 
     dominatorGraph = dc.dominationCreation(flowGraph)
 
     optimizedThreeAddressCode = optimizerLoop(threeAddressCode, flowGraph, dominatorGraph) #This is where we will call the optimizer, for the ungraded checkpoint ignore this
 
-    _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph)
+    assemblyCode = asm.codeShaper(optimizedThreeAddressCode, symbolTable)
+
+    _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph, assemblyCode)
 
 #------ Inward Facing modules
 
 def optimizerLoop(threeAddressCode, flowGraph, dominatorGraph):
-    newthreeAdressCode, changed = cp.propagator(threeAddressCode)
-    newthreeAdressCode, changed = cf.folder(newthreeAdressCode, changed)
-    newthreeAdressCode, changed = dcr.deadCodeRemover(newthreeAdressCode, changed)
-    newthreeAdressCode, changed = cpy.copyPropagator(newthreeAdressCode, changed)
-    newthreeAdressCode, changed = il.invariantLifter(newthreeAdressCode, changed, flowGraph, dominatorGraph)
+    threeAddressCode, changed = cp.propagator(threeAddressCode)
+    threeAddressCode, changed = cf.folder(threeAddressCode, changed)
+    threeAddressCode, changed = dcr.deadCodeRemover(threeAddressCode, changed)
+    threeAddressCode, changed = cpy.copyPropagator(threeAddressCode, changed)
+    threeAddressCode, changed = il.invariantLifter(threeAddressCode, changed, flowGraph, dominatorGraph)
 
 
     while changed == True:
-        newthreeAdressCode, changed = cp.propagator(newthreeAdressCode)
-        newthreeAdressCode, changed = cf.folder(newthreeAdressCode, changed)
-        newthreeAdressCode, changed = dcr.deadCodeRemover(newthreeAdressCode, changed)
-        newthreeAdressCode, changed = cpy.copyPropagator(newthreeAdressCode, changed)
-        newthreeAdressCode, changed = il.invariantLifter(newthreeAdressCode, changed, flowGraph, dominatorGraph)
+        threeAddressCode, changed = cp.propagator(threeAddressCode)
+        threeAddressCode, changed = cf.folder(threeAddressCode, changed)
+        threeAddressCode, changed = dcr.deadCodeRemover(threeAddressCode, changed)
+        threeAddressCode, changed = cpy.copyPropagator(threeAddressCode, changed)
+        threeAddressCode, changed = il.invariantLifter(threeAddressCode, changed, flowGraph, dominatorGraph)
 
-    return newthreeAdressCode
+    return threeAddressCode
 
 
 #Has a built in help command. 
@@ -110,6 +109,8 @@ def _commandLineParser():
     parser.add_argument('-g', action="store_true", help='outputs the flow graph of the input file')
 
     parser.add_argument('-d', action="store_true", help='outputs the dominator graph of the input file')
+
+    parser.add_argument('-asm', action="store_true", help='outputs the assembly code of the input file')
 
     args = parser.parse_args()
 
@@ -148,12 +149,13 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
     indent = 0
     output = ''
     for children in threeAddressCode:
+        indent = 5
         if isinstance(threeAddressCode[children], dict):
-            output += children + ':\n'
+            output += ' ' * indent + children + ':\n'
             for blockIndicator in threeAddressCode[children]:
-                indent = 3
+                indent = 8
                 output += ' ' * indent + blockIndicator + ':\n'
-                indent += 3
+                indent = 11
                 for child, value in threeAddressCode[children][blockIndicator].items():
                     if value[-1] == 'return':
                         output += ' ' * indent + 'return ' + value[0] + '\n'
@@ -200,7 +202,7 @@ def _removingCommentsFromDictionary(dictionary):
     return newDictionary
 
 
-def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCode, flowGraph, dominatorGraphs):
+def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCode, flowGraph, dominatorGraphs, assemblyCode):
     if args.t:
         print(output_for_tokens)
 
@@ -211,6 +213,7 @@ def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCo
         print(symbolTable)
 
     if args.o:
+        print("Optimized Code: ")
         output = _creatingOutputFor3AddressCode(optimizedCode)
         print(output)
 
@@ -247,6 +250,10 @@ def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCo
             plt.title('dominator graph')
             nx.draw(overallDominatorGraph, pos=pos, with_labels=True, node_size=1200, arrows=True)
             plt.show()
+
+    if args.asm:
+        print("Assembly Code: ")
+        print(assemblyCode)
 
 
 if __name__ == "__main__":
