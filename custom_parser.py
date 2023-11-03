@@ -68,8 +68,8 @@ class SymbolTable:
     #example: {'parser': {'x': 'int', 'y': 'float'}, 'main': {'z': 'int'}
 
     def get_type(self, name, scope):
-        if scope in self.symbolTable and name in self.symbolTable[scope]:
-            return self.symbolTable[scope][name]
+        if scope in self.symbolTable and name in self.symbolTable[scope]['vars']:
+            return self.symbolTable[scope]['vars'][name]
         else:
             return None  # Handle the case when the variable is not found
 
@@ -80,17 +80,24 @@ class SymbolTable:
             return None
     
     def add_variable(self, name, type, scope):
-        self.symbolTable[scope][name] = [type]
+        self.symbolTable[scope]['vars'][name] = [type]
 
     def add_scope(self, scope, fun_type, params):
         if scope not in self.symbolTable:
             self.symbolTable[scope] = {}  # Create a new scope
         self.symbolTable[scope]['return_type'] = fun_type
         self.symbolTable[scope]['args'] = params
+        self.symbolTable[scope]['vars'] = {} #We want to reset the variables for the scope
 
     def get_args(self, scope):
         if scope in self.symbolTable:
             return self.symbolTable[scope]['args']
+        else:
+            return None
+        
+    def get_vars(self, scope):
+        if scope in self.symbolTable:
+            return self.symbolTable[scope]['vars']
         else:
             return None
 
@@ -100,16 +107,12 @@ class SymbolTable:
             output += "Scope: " + scope + "\n\t" + "Return Type: " + self.symbolTable[scope]['return_type'] + "\n\tArguments: " + str(self.symbolTable[scope]['args']) + "\n"
             output += "\tVariables:\n"
 
-            for variable in self.symbolTable[scope]:
+            for variable in self.symbolTable[scope]['vars']:
 
                 if variable != 'return_type' and variable != 'args':
-                    output += "\t\t" + variable + ": " + self.symbolTable[scope][variable][0]
-
-                    if len(self.symbolTable[scope][variable]) > 1:
-                        output += " = " + str(self.symbolTable[scope][variable][1])
-                        output += "\n"
-                    else:
-                        output += "\n"
+                    output += "\t\t" + variable + ": " + self.symbolTable[scope]['vars'][variable][0]
+                    output += "\n"
+                    
             output += "\n"
         return output
     
