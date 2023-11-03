@@ -1,7 +1,6 @@
-int main() {
-    int i = 0;
+int main(int i, int j) {
     while (i < 10) {
+        j = 4;
         i = i + 1;
     }
-    return i;
 }

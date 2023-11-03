@@ -43,7 +43,7 @@ def _iteratingThroughBlock(block, deadCodeCandidates, threeAddrCode, blockName, 
             if line[1] == '' and line[-1] == 'decl':
                 threeAddrCode[scope][blockName].pop(key)
 
-            if line[0] not in deadCodeCandidates and line[0].isnumeric() == False and line[1] != '':
+            if line[0] not in deadCodeCandidates and line[0].isnumeric() == False and line[1] != '' and line[-1] != 'return':
                 deadCodeCandidates[line[0]] = [False, scope, blockName, key]
 
         elif line[0] == 'if':
@@ -84,6 +84,7 @@ def _areVariablesUsedInThisBlock(line, deadCodeCandidates):
 #Removes every line that is dead code
 def _removingDeadCode(threeAddrCode, deadCodeCandidates):
     changed = False
+
     for key, value in deadCodeCandidates.items():
         if value[0] == False:
             changed = True

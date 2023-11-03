@@ -1,10 +1,4 @@
 char main(int i){
-   int j = 5;
-   if ( i == 0){
-      j = 4;
-   }
-   else {
-      i = 4;
-   }
-   return 'c';
+   int j;
+   j = 5 + i - 1;
 }

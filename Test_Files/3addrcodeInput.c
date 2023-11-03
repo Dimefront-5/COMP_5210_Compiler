@@ -13,6 +13,8 @@ int main (int a, char b, float d, int z) { //I am checking to see if our comment
         i = 7;
     }
 
+    temp = 1 + temp;
+
     k = 5 + 8 - 9;
     return k + 7 - 8;
 }

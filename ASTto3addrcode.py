@@ -531,7 +531,6 @@ def _creating3AddressCodeForBracketsInWhile(child, addrIndexForWhile, blockAddre
     threeAddressCode[functionScope][blockIndicator][addrIndex] = ['goto L' + blockAddressForWhile[1:], "goto"] #For our final stmt in the block. This will return us back to the while if
     addrIndex += 1
 
-    print(threeAddressCode[functionScope][blockAddressForWhile])
     threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile] = ['if'
                                                                                         ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][1]
                                                                                         ,threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile][2]

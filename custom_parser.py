@@ -796,7 +796,6 @@ def _parseReturnStmtNumberAndID(tokens, first_number_index):
         globalisType = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], "global") #Checking to see if the variable is declared on a global or local scale at least.
         functionArguments = symbolTable.get_args(scope)
 
-        print(tokens[str(first_number_index)][cc.TOKEN_INDEX]in functionArguments)
         if globalisType != None:
             idType = globalisType
 

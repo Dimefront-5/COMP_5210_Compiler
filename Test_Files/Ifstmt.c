@@ -6,4 +6,5 @@ int main(int hi) {
     else{
         return 7;
     }
+    return hi;
 }
