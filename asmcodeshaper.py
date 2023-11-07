@@ -24,6 +24,7 @@ supportedInstructions = [
     "Call",
     "Ret",
     "Leave",
+    "xor",
 ]
 
 
@@ -131,7 +132,6 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
     global currentScope
     global currentBlock
     global asmCode
-
     for scope in threeAddrCode:
         if isinstance(threeAddrCode[scope], dict):#Ignoring global variables for now
             asmCode.addScope(scope)
@@ -139,6 +139,7 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
             currentBlock = list(threeAddrCode[scope].keys())[0]
             asmCode.addBlock(scope, currentBlock)
             _createPrelude(symbolTable)
+
             for block in threeAddrCode[scope]:
                 if block != currentBlock: #Want to skip first block since we already made it
                     asmCode.addBlock(scope, block)
@@ -217,8 +218,9 @@ def _codeShaper(codeLine):
     elif statementIndicator == 'assign':
         _assignShaper(codeLine)
     elif statementIndicator == 'decl':
-        print(codeLine)
         _assignShaper(codeLine) #These are the same thing
+    elif statementIndicator == 'functionCall':
+        _callShaper(codeLine)
     elif statementIndicatorForIfs == 'if':
         _ifShaper(codeLine)
     elif statementIndicator == 'goto':
@@ -300,6 +302,23 @@ def _operatorShaper(codeLine, instruction):
     asmCode.addLine(currentScope, currentBlock, "mov " + '[' + codeLine[0] + '], ' + register)
 
 
+def _callShaper(codeLine):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+
+    for argument in codeLine[1]:
+        if re.match(cc.numbers, argument):
+            asmCode.addLine(currentScope, currentBlock, "push " + argument)
+        elif argument[0] == '\'' or argument[0] == '\"':
+            asmCode.addLine(currentScope, currentBlock, "push " + argument)
+        else:
+            asmCode.addLine(currentScope, currentBlock, "push [" + argument + "]")
+
+    asmCode.addLine(currentScope, currentBlock, "call " + codeLine[0])
+    asmCode.addLine(currentScope, currentBlock, 'xor rax, rax')
+    
 def _ifShaper(codeLine):
     global currentScope
     global currentBlock
@@ -316,9 +335,6 @@ def _ifShaper(codeLine):
         else:
             asmCode.addLine(currentScope, currentBlock, "mov " + register + ', ' + '[' + codeLine[1] + "]")
         
-
-        
-
         if re.match(cc.numbers, codeLine[3]):
             asmCode.addLine(currentScope, currentBlock, "cmp " + register + ', ' + codeLine[3])
         else:

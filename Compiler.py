@@ -176,7 +176,12 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                     elif len(value) == 5 and value[-1] == 'decl':
                         output += ' ' * indent + value[0] + ' = ' + value[1] + ' ' + value[2] + ' ' + value[3] + '\n'
                     elif value[2] == 'functionCall':
-                        output += ' ' * indent + 'call ' +  value[0] + '(' + str(value[1]) + ')\n'
+                        args = ''
+                        for arg in value[1]:
+                            args += arg + ', '
+                        args = args[:-2]
+
+                        output += ' ' * indent + 'call ' +  value[0] + '(' + args + ')\n'
 
                     elif value[-1] == 'assign':
                         if len(value) < 5:

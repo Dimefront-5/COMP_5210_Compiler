@@ -586,11 +586,10 @@ def _create3AddressCodeForFunctionCall(stmtNode):
     functionID = stmtChildren[0].return_value()
     functionIDChildren = stmtChildren[0].return_children()
 
-    args = ''
+    args = []
     for child in functionIDChildren:
-        args += child.return_value() + ', '
+        args.append(child.return_value())
 
-    args = args[:-2]
     threeAddressCode[functionScope][blockIndicator][addrIndex] = [functionID, args, 'functionCall']
     addrIndex += 1
 
