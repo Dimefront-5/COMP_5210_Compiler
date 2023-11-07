@@ -10,6 +10,8 @@ import re
 
 import compilerconstants as cc
 
+
+
 supportedInstructions = [
     "add",
     "sub",
@@ -91,7 +93,7 @@ class register:
         register = "r" + str(self.registerNumber)
         self.registerNumber += 1
         return register
-    
+
 
 global currentRegister
 
@@ -119,6 +121,7 @@ jumpTable = {
     '&&': 'and',
     '||': 'or',
 }
+
 
 def codeShaper(threeAddrCode, symbolTable):
     global asmCode
@@ -226,9 +229,6 @@ def _codeShaper(codeLine):
     elif statementIndicator == 'goto':
         _gotoShaper(codeLine)
 
-    if hasReturn == False:#Set Eax to 0 if there is no return statement
-        pass
-
 #Shapes a return statement into assembly
 def _returnShaper(codeLine):
     global currentScope
@@ -301,7 +301,7 @@ def _operatorShaper(codeLine, instruction):
 
     asmCode.addLine(currentScope, currentBlock, "mov " + '[' + codeLine[0] + '], ' + register)
 
-
+#shapes our call statements
 def _callShaper(codeLine):
     global currentScope
     global currentBlock
@@ -318,13 +318,15 @@ def _callShaper(codeLine):
 
     asmCode.addLine(currentScope, currentBlock, "call " + codeLine[0])
     asmCode.addLine(currentScope, currentBlock, 'xor rax, rax')
-    
+
+#Shapes our if statements   
 def _ifShaper(codeLine):
     global currentScope
     global currentBlock
     global currentRegister
     global asmCode
     global jumpTable
+
     jumpExpression = jumpTable[codeLine[2]]
 
     if not (jumpExpression == 'and' or jumpExpression == 'or'):
@@ -344,8 +346,9 @@ def _ifShaper(codeLine):
         
         asmCode.addLine(currentScope, currentBlock, jumpExpression + ' L' + codeLine[7])
     else:
-        _multipleIfConditional(codeLine)
+        _multipleIfConditional(codeLine, jumpExpression)
 
+#Shapes our gotos
 def _gotoShaper(codeLine):
     global currentScope
     global currentBlock
@@ -353,6 +356,7 @@ def _gotoShaper(codeLine):
 
     asmCode.addLine(currentScope, currentBlock, 'jmp ' + codeLine[0])
 
+#Sets up for multiple if statement conditionals
 def _multipleIfShaper(codeLine):
     global currentScope
     global currentBlock
@@ -368,34 +372,53 @@ def _multipleIfShaper(codeLine):
     
     jumpExpression = jumpTable[codeLine[2]]
 
-    if jumpExpression == 'and' or jumpExpression == 'or':
-        _multipleIfConditional(codeLine, register)
-
-    elif re.match(cc.numbers, codeLine[3]):
+    if re.match(cc.numbers, codeLine[3]):
         asmCode.addLine(currentScope, currentBlock, "cmp " + register + ', ' + codeLine[3])
     else:
         secondRegister = currentRegister.getRegister()
         asmCode.addLine(currentScope, currentBlock, "mov " + secondRegister + ', ' + '[' + codeLine[3] + "]")
         asmCode.addLine(currentScope, currentBlock, "cmp " + register + ', ' + secondRegister)
     
-    asmCode.addLine(currentScope, currentBlock, jumpExpression + ' REPLACE')
-    
-def _multipleIfConditional(codeLine):
+    asmCode.addLine(currentScope, currentBlock, jumpExpression + ' REPLACE')#We leave this like this so we can change it later
+
+
+#Fixes our multiple conditional statements so it turns into assembyl correctly
+def _multipleIfConditional(codeLine, operator):
     global currentScope
     global currentBlock
     global currentRegister
     global asmCode
     global jumpTable
 
+    #    if operator == 'or', We will need to swap the first operator around so it acts as an if statement
+    oppositeJumps = {
+        'jne': 'je',
+        'je': 'jne',
+        'jle': 'jg',
+        'jge': 'jl',
+        'jl': 'jge',
+        'jg': 'jle',
+    }
+    
     jumpEnd = 'L' + codeLine[7]
 
     asmBlock = asmCode.code[currentScope][currentBlock]
 
     newAsmBlock = []
 
+    firstConditional = False
     for line in asmBlock:
         if line[-7:] == 'REPLACE':
-            tempLine = line[:-7] + jumpEnd
+            if operator == 'or' and firstConditional == False:#We only change the first conditional of an or statement
+                oppositeJump = oppositeJumps[line[0:3]]
+                newFinalJump = currentBlock[:1] + str(int(currentBlock[1:]) + 1) 
+                tempLine = oppositeJump + ' ' + newFinalJump
+            else:
+                tempLine = line[:-7] + jumpEnd
+
+            if firstConditional == False:
+                firstConditional = True
+
             newAsmBlock.append(tempLine)
         else:
             newAsmBlock.append(line)
