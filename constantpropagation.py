@@ -69,11 +69,12 @@ def _checkingForConstant(variablesWithConstants, stmt, changed):
 
     if re.match(cc.numbers, stmt[1]): #If the value is a negative number, we want to make sure we don't treat the negative sign as a variable
         variablesWithConstants[stmt[0]] = stmt[1]
+
     elif stmt[1] in variablesWithConstants:
         stmt[1] = variablesWithConstants[stmt[1]]
         changed = True
 
-    if stmt[0] in variablesWithConstants:
+    elif stmt[0] in variablesWithConstants:
         del variablesWithConstants[stmt[0]]
 
     return stmt, changed

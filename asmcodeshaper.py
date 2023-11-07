@@ -1,16 +1,13 @@
 '''
 -@author: Tyler Ray
--@date: 11/2/2023
+-@date: 11/6/2023
 
 - This file will convert our optimized 3 address code into assembly code
 - ***Work in progress***
 '''
 
-from ast import arg
-import glob
 import re
 
-from numpy import var
 import compilerconstants as cc
 
 supportedInstructions = [
@@ -74,14 +71,14 @@ class assemblyCode:
 
     def __str__(self):
         output = ''
-        indent = 5
         for scope in self.code:
+            indent = 5
             output += ' ' * indent + scope + ':' + '\n'
-            indent = 8
             for block in self.code[scope]:
+                indent = 8
                 output += ' ' * indent + block + ':' + '\n'
-                indent = 11
                 for line in self.code[scope][block]:
+                    indent = 11
                     output += ' ' * indent + line + '\n'
         return output
 
@@ -108,7 +105,20 @@ global currentScope
 currentScope = 'global'
 
 global currentBlock
-    
+
+global jumpTable
+
+jumpTable = {
+    '==': 'jne',
+    '!=': 'je',
+    '>': 'jle',
+    '<': 'jge',
+    '>=': 'jl',
+    '<=': 'jg',
+    '&&': 'and',
+    '||': 'or',
+}
+
 def codeShaper(threeAddrCode, symbolTable):
     global asmCode
     _generateAssemblyCode(threeAddrCode, symbolTable)
@@ -206,7 +216,13 @@ def _codeShaper(codeLine):
         _returnShaper(codeLine)
     elif statementIndicator == 'assign':
         _assignShaper(codeLine)
-
+    elif statementIndicator == 'decl':
+        print(codeLine)
+        _assignShaper(codeLine) #These are the same thing
+    elif statementIndicatorForIfs == 'if':
+        _ifShaper(codeLine)
+    elif statementIndicator == 'goto':
+        _gotoShaper(codeLine)
 
     if hasReturn == False:#Set Eax to 0 if there is no return statement
         pass
@@ -231,9 +247,12 @@ def _assignShaper(codeLine):
     global currentBlock
     global currentRegister
     global asmCode
+    global jumpTable
 
     if re.match(cc.exprOps, codeLine[2]): #Meaning we have an expression
         _exprShaper(codeLine)
+    elif codeLine[2] in jumpTable: #Meaning we have an if statement
+        _multipleIfShaper(codeLine)
     else:
         register = currentRegister.getRegister()
         if not re.match(cc.numbers, codeLine[1]):#is it just a number or a variable
@@ -280,3 +299,89 @@ def _operatorShaper(codeLine, instruction):
 
     asmCode.addLine(currentScope, currentBlock, "mov " + '[' + codeLine[0] + '], ' + register)
 
+
+def _ifShaper(codeLine):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+    global jumpTable
+    jumpExpression = jumpTable[codeLine[2]]
+
+    if not (jumpExpression == 'and' or jumpExpression == 'or'):
+        register = currentRegister.getRegister()
+
+        if re.match(cc.numbers, codeLine[1]):
+            asmCode.addLine(currentScope, currentBlock, "mov " + register + ', ' + codeLine[1])
+        else:
+            asmCode.addLine(currentScope, currentBlock, "mov " + register + ', ' + '[' + codeLine[1] + "]")
+        
+
+        
+
+        if re.match(cc.numbers, codeLine[3]):
+            asmCode.addLine(currentScope, currentBlock, "cmp " + register + ', ' + codeLine[3])
+        else:
+            secondRegister = currentRegister.getRegister()
+            asmCode.addLine(currentScope, currentBlock, "mov " + secondRegister + ', ' + '[' + codeLine[3] + "]")
+            asmCode.addLine(currentScope, currentBlock, "cmp " + register + ', ' + secondRegister)
+        
+        asmCode.addLine(currentScope, currentBlock, jumpExpression + ' L' + codeLine[7])
+    else:
+        _multipleIfConditional(codeLine)
+
+def _gotoShaper(codeLine):
+    global currentScope
+    global currentBlock
+    global asmCode
+
+    asmCode.addLine(currentScope, currentBlock, 'jmp ' + codeLine[0])
+
+def _multipleIfShaper(codeLine):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+
+    register = currentRegister.getRegister()
+
+    if re.match(cc.numbers, codeLine[1]):
+        asmCode.addLine(currentScope, currentBlock, "mov " + register + ', ' + codeLine[1])
+    else:
+        asmCode.addLine(currentScope, currentBlock, "mov " + register + ', ' + '[' + codeLine[1] + "]")
+    
+    jumpExpression = jumpTable[codeLine[2]]
+
+    if jumpExpression == 'and' or jumpExpression == 'or':
+        _multipleIfConditional(codeLine, register)
+
+    elif re.match(cc.numbers, codeLine[3]):
+        asmCode.addLine(currentScope, currentBlock, "cmp " + register + ', ' + codeLine[3])
+    else:
+        secondRegister = currentRegister.getRegister()
+        asmCode.addLine(currentScope, currentBlock, "mov " + secondRegister + ', ' + '[' + codeLine[3] + "]")
+        asmCode.addLine(currentScope, currentBlock, "cmp " + register + ', ' + secondRegister)
+    
+    asmCode.addLine(currentScope, currentBlock, jumpExpression + ' REPLACE')
+    
+def _multipleIfConditional(codeLine):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+    global jumpTable
+
+    jumpEnd = 'L' + codeLine[7]
+
+    asmBlock = asmCode.code[currentScope][currentBlock]
+
+    newAsmBlock = []
+
+    for line in asmBlock:
+        if line[-7:] == 'REPLACE':
+            tempLine = line[:-7] + jumpEnd
+            newAsmBlock.append(tempLine)
+        else:
+            newAsmBlock.append(line)
+
+    asmCode.code[currentScope][currentBlock] = newAsmBlock

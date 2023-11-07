@@ -340,7 +340,7 @@ def _create3AddressCodeForElseStmt(stmt, blockIndicatorForIfStmts):
     threeAddressCode[functionScope][blockIndicator] = {}
     _create3AddressCodeForStmts(stmtListNode)
 
-    threeAddressCode[functionScope][blockIndicatorForIfStmts][addrIndex] = ['goto L' + str(int(blockIndicator[1:]) + 1), "goto"]
+    threeAddressCode[functionScope][blockIndicatorForIfStmts][addrIndex] = ['L' + str(int(blockIndicator[1:]) + 1), "goto"]
 
     previousBlock = 'L' + str(int(blockIndicatorForIfStmts[1:]) - 1)
 
@@ -528,7 +528,7 @@ def _creating3AddressCodeForBracketsInWhile(child, addrIndexForWhile, blockAddre
 
     _create3AddressCodeForStmts(stmtListNode)
 
-    threeAddressCode[functionScope][blockIndicator][addrIndex] = ['goto L' + blockAddressForWhile[1:], "goto"] #For our final stmt in the block. This will return us back to the while if
+    threeAddressCode[functionScope][blockIndicator][addrIndex] = ['L' + blockAddressForWhile[1:], "goto"] #For our final stmt in the block. This will return us back to the while if
     addrIndex += 1
 
     threeAddressCode[functionScope][blockAddressForWhile][addrIndexForWhile] = ['if'

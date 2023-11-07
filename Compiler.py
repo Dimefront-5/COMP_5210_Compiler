@@ -164,7 +164,7 @@ def _creatingOutputFor3AddressCode(threeAddressCode):
                         output += ' ' * indent + value[0] + '\n'
 
                     elif value[-1] == 'goto':
-                        output += ' ' * indent + value[0] + '\n'
+                        output += ' ' * indent + 'goto ' +  value[0] + '\n'
 
                     elif value[0] == 'if':
                         output += ' ' * indent + 'if (' + value[1]  + ' ' + value[2] + ' ' + value[3] + ') ' + value[4] + value[5] + value[6] + value[7] +'\n'
