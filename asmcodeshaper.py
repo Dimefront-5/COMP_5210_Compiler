@@ -1,16 +1,14 @@
 '''
 -@author: Tyler Ray
--@date: 11/6/2023
+-@date: 11/7/2023
 
 - This file will convert our optimized 3 address code into assembly code
 - ***Work in progress***
 '''
 
+import code
 import re
-
 import compilerconstants as cc
-
-
 
 supportedInstructions = [
     "add",
@@ -27,6 +25,8 @@ supportedInstructions = [
     "Ret",
     "Leave",
     "xor",
+    "shl",
+    "shr"
 ]
 
 
@@ -122,9 +122,9 @@ jumpTable = {
     '||': 'or',
 }
 
-
 def codeShaper(threeAddrCode, symbolTable):
     global asmCode
+
     _generateAssemblyCode(threeAddrCode, symbolTable)
 
     return asmCode
@@ -135,6 +135,7 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
     global currentScope
     global currentBlock
     global asmCode
+
     for scope in threeAddrCode:
         if isinstance(threeAddrCode[scope], dict):#Ignoring global variables for now
             asmCode.addScope(scope)
@@ -152,7 +153,9 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
                     _codeShaper(line)
             
             _createEpilogue()
-    
+
+
+#Creates our prelude for when we start a function
 def _createPrelude(symbolTable):
     global currentScope
     global currentBlock
@@ -163,6 +166,7 @@ def _createPrelude(symbolTable):
     stackSpaceNeeded = _figureOutHowMuchStackSpaceWeNeed(symbolTable)
     asmCode.addLine(currentScope, currentBlock, "sub rsp, " + str(stackSpaceNeeded))#Eventually we will need to change this to be the size of the local variables
 
+#Figures out how much stack space we need for a function
 def _figureOutHowMuchStackSpaceWeNeed(symbolTable):
     global currentScope
 
@@ -195,15 +199,20 @@ def _figureOutHowMuchStackSpaceWeNeed(symbolTable):
     return spaceNeeded
 
 
-
 #Creates our epilogue for when we close out a function
 def _createEpilogue():
     global currentScope
     global currentBlock
     global asmCode
 
-    asmCode.addLine(currentScope, currentBlock, "leave")
-    asmCode.addLine(currentScope, currentBlock, "ret")
+    returnBlock = currentScope + 'Return'
+
+    asmCode.addBlock(currentScope, returnBlock)#We add a block for our return statement so if there are any other returns in the code they can jump straight to it
+    asmCode.addLine(currentScope, returnBlock, "leave")
+    asmCode.addLine(currentScope, returnBlock, "ret")
+    
+
+            
     
 #Shapes each functions code into assembly
 def _codeShaper(codeLine):
@@ -237,11 +246,12 @@ def _returnShaper(codeLine):
     global asmCode
 
     if re.match(cc.numbers, codeLine[0]):#Checking to see if we need to refrence memory or just a number
-        returnCode = "mov " + str(currentRegister.getRegister()) + ', ' + codeLine[0]
+        returnCode = "mov rax" + ', ' + codeLine[0]
     else:
-        returnCode = "mov " + str(currentRegister.getRegister()) + ', ' '[' + codeLine[0] + "]"
+        returnCode = "mov rax" + ', ' '[' + codeLine[0] + "]"
 
     asmCode.addLine(currentScope, currentBlock, returnCode)
+    asmCode.addLine(currentScope, currentBlock, 'jmp ' + currentScope + 'Return')
 
 #Shapes an assignment statement into assembly
 def _assignShaper(codeLine):
@@ -274,9 +284,73 @@ def _exprShaper(codeLine):
     elif operator == '-':
         _operatorShaper(codeLine, 'sub')
     elif operator == '*':
-        _operatorShaper(codeLine, 'mul')
+        _shiftChecking(codeLine, 'mul')
     elif operator == '/':
-        _operatorShaper(codeLine, 'div')
+        _shiftChecking(codeLine, 'div')
+
+#Will check for some basic optimizations for multiplication and division
+#Then will see if we can shift it instead of using the actual operation
+def _shiftChecking(codeLine, operation):
+    if codeLine[1] == '1':#If we are multiplying by 1, we can just move the number into the variable
+        asmCode.addLine(currentScope, currentBlock, "mov " + '[' + codeLine[0] + '], ' + codeLine[3])
+
+    elif codeLine[3] == '1':
+        asmCode.addLine(currentScope, currentBlock, "mov " + '[' + codeLine[0] + '], ' + codeLine[1])
+
+    elif codeLine[1] == '0' or codeLine[3] == '0':#If either is 0, we can just move 0 into the variable
+        asmCode.addLine(currentScope, currentBlock, "mov " + '[' + codeLine[0] + '], ' + codeLine[1])
+
+    elif codeLine[1].isnumeric() and is_power_of_2(int(codeLine[1])):
+        if operation == 'div':
+            _shiftFinder(codeLine, 1, 3, 'right')
+        else:
+            _shiftFinder(codeLine, 1, 3, 'left')
+    elif codeLine[3].isnumeric() and is_power_of_2(int(codeLine[3])):#If we are dividing by an even number, we can just shift the number to the left
+        if operation == 'div':
+            _shiftFinder(codeLine, 3, 1, 'right')
+        else:
+            _shiftFinder(codeLine, 3, 1, 'left')
+    else:
+        _operatorShaper(codeLine, operation)
+
+#I had ChatGPT generate this function for me
+def is_power_of_2(num):
+    # Check if the number is greater than 0 and has only one bit set to 1.
+    # A power of 2 in binary has only one bit set.
+    return num > 0 and (num & (num - 1)) == 0
+
+def _shiftFinder(codeLine, codeLineIndex, oppositeIndex, direction):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+
+    shiftNumber = get_shift_count(int(codeLine[codeLineIndex]))
+    register = currentRegister.getRegister()
+
+    if re.match(cc.numbers, codeLine[codeLineIndex]):
+        asmCode.addLine(currentScope, currentBlock, "mov " + register + ', ' + codeLine[oppositeIndex])
+    else:
+        asmCode.addLine(currentScope, currentBlock, "mov " + register + ', ' + '[' + codeLine[oppositeIndex] + "]")
+
+    if direction == 'left':
+        asmCode.addLine(currentScope, currentBlock, "shl " + register + ', ' + str(shiftNumber))
+    else:
+        asmCode.addLine(currentScope, currentBlock, "shr " + register + ', ' + str(shiftNumber))
+
+    asmCode.addLine(currentScope, currentBlock, "mov " + '[' + codeLine[0] + '], ' + register)
+
+#I had ChatGPT generate this function for me
+def get_shift_count(num):
+    if num <= 0:
+        return 0  # Handling the case when num is not a power of 2.
+    
+    shift_count = 0
+    while (num & 1) == 0:
+        num >>= 1
+        shift_count += 1
+
+    return shift_count
 
 #Shapes an expression into assembly
 def _operatorShaper(codeLine, instruction):
@@ -354,7 +428,8 @@ def _gotoShaper(codeLine):
     global currentBlock
     global asmCode
 
-    asmCode.addLine(currentScope, currentBlock, 'jmp ' + codeLine[0])
+    if len(asmCode.code[currentScope][currentBlock]) == 0 or not asmCode.code[currentScope][currentBlock][-1][0:3] == 'jmp':#If there is a jump at the end of the block, we don't need to add another one This is for return statements in loops
+        asmCode.addLine(currentScope, currentBlock, 'jmp ' + codeLine[0])
 
 #Sets up for multiple if statement conditionals
 def _multipleIfShaper(codeLine):

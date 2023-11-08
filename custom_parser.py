@@ -5,8 +5,6 @@
 - Will parse through our token list and output a AST along with a symbol table
 - Works for the below grammar
 '''
-from audioop import mul
-from math import e
 import compilerconstants as cc
 from anytree import RenderTree #Our fancy printing with AST
 import re

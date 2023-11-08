@@ -1,6 +1,6 @@
 '''
 -@author: Tyler Ray
--@date: 10/31/2023
+-@date: 11/7/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
@@ -18,7 +18,7 @@ import deadcoderemoval as dcr
 import copypropagation as cpy
 import dominatorcreator as dc
 import invarientlifter as il
-import asmcodeshaper as asm
+import asmcodeshaper as acs
 
 import argparse
 import sys
@@ -65,7 +65,7 @@ def main():
 
     optimizedThreeAddressCode = optimizerLoop(threeAddressCode, flowGraph, dominatorGraph) #This is where we will call the optimizer, for the ungraded checkpoint ignore this
 
-    assemblyCode = asm.codeShaper(optimizedThreeAddressCode, symbolTable)
+    assemblyCode = acs.codeShaper(optimizedThreeAddressCode, symbolTable)
 
     _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph, assemblyCode)
 
@@ -207,7 +207,7 @@ def _removingCommentsFromDictionary(dictionary):
     return newDictionary
 
 
-def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCode, flowGraph, dominatorGraphs, assemblyCode):
+def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCode, flowGraph, dominatorGraphs, assemblyCode = None):
     if args.t:
         print(output_for_tokens)
 
