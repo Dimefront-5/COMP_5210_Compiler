@@ -6,9 +6,9 @@
 - ***Work in progress***
 '''
 
-import code
 import re
 import compilerconstants as cc
+import networkx as nx
 
 supportedInstructions = [
     "add",
@@ -154,6 +154,107 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
             
             _createEpilogue()
 
+    _registrySetter()
+
+# Walks through our code and finds every register that is used and when it is used
+def _registrySetter():
+    global asmCode
+
+    code = asmCode.code
+
+    registersInBlock = {}
+    lineNumber = 0
+    for scope in code:
+        for block in code[scope]:
+            registersInBlock[block] = []
+            lineNumber = 0
+            for line in code[scope][block]:
+                lineNumber += 1
+                splitLine = line.split(' ')
+                if len(splitLine) > 1:
+                    afterInstruction = splitLine[1][:-1]
+                    if afterInstruction[0:1] == 'r' and afterInstruction[1:].isnumeric():
+                        registersInBlock[block].append([afterInstruction, lineNumber])
+
+                    if len(splitLine) > 2:
+                        secondAfterInstruction = splitLine[2]
+                        if secondAfterInstruction[0:1] == 'r' and secondAfterInstruction[1:].isnumeric():
+                            registersInBlock[block].append([secondAfterInstruction, lineNumber])
+
+    _registerAllocator(registersInBlock) 
+
+#Checks to see if we need to do live analysis or not
+def _registerAllocator(registersInBlock):
+    livenessAnalysisPerBlock = {}
+    for block in registersInBlock:
+        livenessAnalysisPerBlock[block] = {}
+        for register in registersInBlock[block]:
+            if register[0] not in livenessAnalysisPerBlock[block]:
+                livenessAnalysisPerBlock[block][register[0]] = [register[1], register[1]]
+            else:
+                livenessAnalysisPerBlock[block][register[0]][1] = register[1]
+    
+    newMapping = {}
+    for block in livenessAnalysisPerBlock:
+        newMapping[block] = {}
+        registerCount = 0
+        for register in livenessAnalysisPerBlock[block]:
+            registerCount += 1
+
+        if registerCount > 15:
+            _liveAnalysis(livenessAnalysisPerBlock[block], block)
+
+        else:#Will assign each register to a numbered register
+            registerList = ['eax', 'ebx', 'ecx', 'edx', 'esi', 'edi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15']
+            for register in livenessAnalysisPerBlock[block]:
+                newMapping[block][register] = registerList[0]
+                registerList.pop(0)
+    
+    _registerReplacer(newMapping)
+
+#Replaces our registers with the ones we have assigned
+def _registerReplacer(newMapping):
+    global asmCode
+
+    newBlock = {}
+    for scope in asmCode.code:
+        for block in asmCode.code[scope]:
+            newBlock[block] = []
+            for line in asmCode.code[scope][block]:
+                splitLine = line.split(' ')
+                if len(splitLine) > 1:
+                    afterInstruction = splitLine[1][:-1]
+                    if afterInstruction[0:1] == 'r' and afterInstruction[1:].isnumeric():
+                        splitLine[1] = newMapping[block][afterInstruction] + ','
+
+                        if len(splitLine) > 2: #is the second after instruction a register?
+                            secondAfterInstruction = splitLine[2]
+                            if secondAfterInstruction[0:1] == 'r' and secondAfterInstruction[1:].isnumeric():
+                                splitLine[2] = newMapping[block][secondAfterInstruction]
+                                newBlock[block].append(' '.join(splitLine))
+                            else:
+                                newBlock[block].append(' '.join(splitLine))
+                        else:
+                            newBlock[block].append(' '.join(splitLine))
+
+                    elif len(splitLine) > 2:
+                        secondAfterInstruction = splitLine[2]
+                        if secondAfterInstruction[0:1] == 'r' and secondAfterInstruction[1:].isnumeric():
+                            splitLine[2] = newMapping[block][secondAfterInstruction]
+                            newBlock[block].append(' '.join(splitLine))
+                        else:
+                            newBlock[block].append(line)
+                    else:
+                        newBlock[block].append(line)
+                else:
+                    newBlock[block].append(line)
+    
+            asmCode.code[scope][block] = newBlock[block]
+        
+
+def _liveAnalysis(livenessAnalysis, block):
+    pass
+
 
 #Creates our prelude for when we start a function
 def _createPrelude(symbolTable):
@@ -161,10 +262,10 @@ def _createPrelude(symbolTable):
     global currentBlock
     global asmCode
 
-    asmCode.addLine(currentScope, currentBlock, "push rbp")
-    asmCode.addLine(currentScope, currentBlock, "mov rbp, rsp")
+    asmCode.addLine(currentScope, currentBlock, "push ebp")
+    asmCode.addLine(currentScope, currentBlock, "mov ebp, esp")
     stackSpaceNeeded = _figureOutHowMuchStackSpaceWeNeed(symbolTable)
-    asmCode.addLine(currentScope, currentBlock, "sub rsp, " + str(stackSpaceNeeded))#Eventually we will need to change this to be the size of the local variables
+    asmCode.addLine(currentScope, currentBlock, "sub esp, " + str(stackSpaceNeeded))#Eventually we will need to change this to be the size of the local variables
 
 #Figures out how much stack space we need for a function
 def _figureOutHowMuchStackSpaceWeNeed(symbolTable):
@@ -246,9 +347,9 @@ def _returnShaper(codeLine):
     global asmCode
 
     if re.match(cc.numbers, codeLine[0]):#Checking to see if we need to refrence memory or just a number
-        returnCode = "mov rax" + ', ' + codeLine[0]
+        returnCode = "mov eax" + ', ' + codeLine[0]
     else:
-        returnCode = "mov rax" + ', ' '[' + codeLine[0] + "]"
+        returnCode = "mov eax" + ', ' '[' + codeLine[0] + "]"
 
     asmCode.addLine(currentScope, currentBlock, returnCode)
     asmCode.addLine(currentScope, currentBlock, 'jmp ' + currentScope + 'Return')
