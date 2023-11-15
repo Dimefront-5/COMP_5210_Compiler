@@ -87,6 +87,12 @@ class SymbolTable:
         self.symbolTable[scope]['args'] = params
         self.symbolTable[scope]['vars'] = {} #We want to reset the variables for the scope
 
+    def add_valueForGlobal(self, name, value):
+        if 'global' not in self.symbolTable:
+            self.symbolTable['global'] = {}  # Create a new scope
+        else:
+            self.symbolTable['global']['vars'][name].append(value)
+
     def get_args(self, scope):
         if scope in self.symbolTable:
             return self.symbolTable[scope]['args']
@@ -249,8 +255,13 @@ def _parseDecl(tokens):
             elif tokens[str(index)][cc.TOKEN_INDEX] == '=': #It is a global variable, so we can just parse the back of it using endofDecl_parser
 
                 global_decl = _parseEndofDecl(tokens, idNode, declType, declId)
+
                 if global_decl != None:
                     declNode.add_child(global_decl)
+                    
+                    if len(global_decl.return_children()) > 0:
+                        symbolTable.add_valueForGlobal(declId, global_decl.return_children()[1].return_value())
+                        
                     return declNode
                 
     _customError(errormsg, tokens, index)

@@ -75,14 +75,24 @@ class assemblyCode:
     def __str__(self):
         output = ''
         for scope in self.code:
-            indent = 5
-            output += ' ' * indent + scope + ':' + '\n'
-            for block in self.code[scope]:
-                indent = 8
-                output += ' ' * indent + block + ':' + '\n'
-                for line in self.code[scope][block]:
-                    indent = 11
-                    output += ' ' * indent + line + '\n'
+            if scope != 'global':
+                indent = 0
+                output += ' ' * indent + scope + ':' + '\n'
+                for block in self.code[scope]:
+                    indent = 3
+                    output += ' ' * indent + block + ':' + '\n'
+                    for line in self.code[scope][block]:
+                        indent = 6
+                        output += ' ' * indent + line + '\n'
+            else:
+                globalVars = self.code[scope]
+                temp = ''
+                for variableName in globalVars:
+                    temp += variableName + ':\n'
+                    for line in globalVars[variableName]:
+                        temp += ' ' * 3 + line + '\n'
+                output = temp + output
+                
         return output
 
 class register:
@@ -136,7 +146,7 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
     global currentBlock
     global asmCode
 
-    for scope in threeAddrCode:
+    for scope in threeAddrCode: #TODO: Make it so we can have global variables
         if isinstance(threeAddrCode[scope], dict):#Ignoring global variables for now
             asmCode.addScope(scope)
             currentScope = scope
@@ -153,8 +163,28 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
                     _codeShaper(line)
             
             _createEpilogue()
+        else:
+            asmCode.addScope('global')
+            _addingGlobalVars(symbolTable)
 
     _registrySetter()
+
+def _addingGlobalVars(symbolTable):
+    global_vars = symbolTable.get_vars('global')
+
+    for var in global_vars:
+        asmCode.addBlock('global', var)
+        if global_vars[var][0] == 'int' or global_vars[var][0] == 'float':
+            if len(global_vars[var]) > 1:
+                asmCode.addLine('global', var, f'.long {global_vars[var][1]}')
+            else:
+                asmCode.addLine('global', var, '.long 0')
+
+        elif global_vars[var][0] == 'char':
+            if len(global_vars[var]) > 1:
+                asmCode.addLine('global', var, f'.byte {global_vars[var][1]}')
+            else:
+                asmCode.addLine('global', var, '.byte 0')
 
 # Walks through our code and finds every register that is used and when it is used
 def _registrySetter():

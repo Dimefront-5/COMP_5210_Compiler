@@ -67,6 +67,9 @@ def main():
 
     assemblyCode = acs.codeShaper(optimizedThreeAddressCode, symbolTable)
 
+    with open('output.asm', 'w') as f:
+        f.write(assemblyCode.__str__())
+
     _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph, assemblyCode)
 
 #------ Inward Facing modules
