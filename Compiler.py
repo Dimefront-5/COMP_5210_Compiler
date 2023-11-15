@@ -67,10 +67,11 @@ def main():
 
     assemblyCode = acs.codeShaper(optimizedThreeAddressCode, symbolTable)
 
-    with open('output.asm', 'w') as f:
+    fileName = os.path.basename(possibleInputFile)[:-2]
+    with open(f'{fileName}.asm', 'w') as f:
         f.write(assemblyCode.__str__())
 
-    _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph, assemblyCode)
+    _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph)
 
 #------ Inward Facing modules
 
@@ -112,8 +113,6 @@ def _commandLineParser():
     parser.add_argument('-g', action="store_true", help='outputs the flow graph of the input file')
 
     parser.add_argument('-d', action="store_true", help='outputs the dominator graph of the input file')
-
-    parser.add_argument('-asm', action="store_true", help='outputs the assembly code of the input file')
 
     args = parser.parse_args()
 
@@ -210,7 +209,7 @@ def _removingCommentsFromDictionary(dictionary):
     return newDictionary
 
 
-def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCode, flowGraph, dominatorGraphs, assemblyCode = None):
+def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCode, flowGraph, dominatorGraphs):
     if args.t:
         print(output_for_tokens)
 
@@ -259,9 +258,6 @@ def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCo
             nx.draw(overallDominatorGraph, pos=pos, with_labels=True, node_size=1200, arrows=True)
             plt.show()
 
-    if args.asm:
-        print("Assembly Code: ")
-        print(assemblyCode)
 
 
 if __name__ == "__main__":

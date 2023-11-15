@@ -492,7 +492,7 @@ def _parseEndofDecl(tokens, local_decl, declType, declId):
                 memoryNode.add_child(exprNode)
                 exprNode = memoryNode
 
-            local_decl = _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode, first_number_index) # A lot we are passing in, but I think this is better than creating a list to pass in
+            local_decl = _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode) # A lot we are passing in, but I think this is better than creating a list to pass in
             return local_decl
             
         elif tokens[str(index)][cc.TOKEN_INDEX] == '"' or tokens[str(index)][cc.TOKEN_INDEX] == "'":
@@ -535,7 +535,7 @@ def _expressionRecreator(tokens, first_number_index):
     return expression.strip()
 
 #Parses our number endofDecl
-def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode, first_number_index):
+def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode):
     global scope
     global index
     local_decl.add_child(exprNode)
@@ -543,8 +543,11 @@ def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode, first_
     if re.match(grammar['NumType'][0], declType) or re.match(grammar['TypeModifier'][0], declType): #A typemodifier can be a type in c
 
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-            expression = _expressionRecreator(tokens, first_number_index) #We want to pass in the value for our symbol table
-            symbolTable.add_variable(declId, declType, scope)
+            if scope == 'global':
+                symbolTable.add_variable(declId, declType, scope)
+
+            elif not declId in symbolTable.get_args(scope):
+                symbolTable.add_variable(declId, declType, scope)
             #Pass in the name, type, and scope
             index += 1
             return local_decl
@@ -568,7 +571,12 @@ def _parseEndofDeclString(tokens, local_decl, declType, declId):
 
         local_decl.add_child(ASTNode(second_half_of_decl))
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
-            symbolTable.add_variable(declId, declType, scope)
+            if scope == 'global':
+                symbolTable.add_variable(declId, declType, scope)
+
+            elif not declId in symbolTable.get_args(scope):
+                symbolTable.add_variable(declId, declType, scope)
+
             #Passing in name, value, and scope for strings/characters we have to push it back further to grab the right tokens
             index += 1
             return local_decl

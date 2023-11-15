@@ -6,6 +6,7 @@
 - ***Work in progress***
 '''
 
+from hmac import new
 import re
 import compilerconstants as cc
 import networkx as nx
@@ -79,10 +80,11 @@ class assemblyCode:
                 indent = 0
                 output += ' ' * indent + scope + ':' + '\n'
                 for block in self.code[scope]:
-                    indent = 3
+                    indent = 0
                     output += ' ' * indent + block + ':' + '\n'
+
                     for line in self.code[scope][block]:
-                        indent = 6
+                        indent = 3
                         output += ' ' * indent + line + '\n'
             else:
                 globalVars = self.code[scope]
@@ -146,8 +148,8 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
     global currentBlock
     global asmCode
 
-    for scope in threeAddrCode: #TODO: Make it so we can have global variables
-        if isinstance(threeAddrCode[scope], dict):#Ignoring global variables for now
+    for scope in threeAddrCode:
+        if isinstance(threeAddrCode[scope], dict):
             asmCode.addScope(scope)
             currentScope = scope
             currentBlock = list(threeAddrCode[scope].keys())[0]
@@ -168,6 +170,7 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
             _addingGlobalVars(symbolTable)
 
     _registrySetter()
+    _changingMemoryReferences(symbolTable)
 
 def _addingGlobalVars(symbolTable):
     global_vars = symbolTable.get_vars('global')
@@ -285,6 +288,65 @@ def _registerReplacer(newMapping):
 def _liveAnalysis(livenessAnalysis, block):
     pass
 
+def _changingMemoryReferences(symbolTable):
+    global asmCode
+
+    stackAddress = 4
+    variableMapping = {}
+    for scope in symbolTable.symbolTable:
+        if scope != 'global':
+            variables = symbolTable.get_vars(scope)
+
+            for variable in variables:
+                if variables[variable][0] == 'int' or variables[variable][0] == 'char':
+                    variableMapping[variable] = f'[ebp - {stackAddress}]'
+                    stackAddress += 4
+                elif variables[variable][0] == 'float':
+                    variableMapping[variable] = f'[ebp - {stackAddress}]'
+                    stackAddress += 8
+                elif variables[variable][0] == 'double':
+                    variableMapping[variable] = f'[ebp - {stackAddress}]'
+                    stackAddress += 16
+    
+    _recreatingCode(variableMapping)
+
+def _recreatingCode(variableMapping):
+    
+    for scope in asmCode.code:
+        for block in asmCode.code[scope]:
+            newBlock = []
+            for line in asmCode.code[scope][block]:
+                splitLine = line.split(' ')
+                if len(splitLine) > 1:
+                    afterInstruction = splitLine[1][1:-2]
+                    if afterInstruction in variableMapping:
+                        splitLine[1] = variableMapping[afterInstruction] + ','
+                        if len(splitLine) > 2:
+                            secondAfterInstruction = splitLine[2]
+                            if secondAfterInstruction in variableMapping:
+                                splitLine[2] = variableMapping[secondAfterInstruction]
+                                newBlock.append(' '.join(splitLine))
+                            else:
+                                newBlock.append(' '.join(splitLine))
+                        else:
+                            newBlock.append(' '.join(splitLine))
+
+                    elif len(splitLine) > 2:
+                        secondAfterInstruction = splitLine[2][1:-1]
+
+                        if secondAfterInstruction in variableMapping:
+                            splitLine[2] = variableMapping[secondAfterInstruction]
+                            newBlock.append(' '.join(splitLine))
+                        else:
+                            newBlock.append(line)
+                    else:
+                        newBlock.append(line)
+                else:
+                    newBlock.append(line)
+                    
+            asmCode.code[scope][block] = newBlock
+                        
+                
 
 #Creates our prelude for when we start a function
 def _createPrelude(symbolTable):
