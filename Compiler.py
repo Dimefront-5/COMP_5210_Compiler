@@ -63,7 +63,7 @@ def main():
 
     dominatorGraph = dc.dominationCreation(flowGraph)
 
-    optimizedThreeAddressCode = optimizerLoop(threeAddressCode, flowGraph, dominatorGraph) #This is where we will call the optimizer, for the ungraded checkpoint ignore this
+    optimizedThreeAddressCode = optimizerLoop(threeAddressCode, flowGraph, dominatorGraph, symbolTable) #This is where we will call the optimizer, for the ungraded checkpoint ignore this
 
     assemblyCode = acs.codeShaper(optimizedThreeAddressCode, symbolTable)
 
@@ -75,9 +75,9 @@ def main():
 
 #------ Inward Facing modules
 
-def optimizerLoop(threeAddressCode, flowGraph, dominatorGraph):
+def optimizerLoop(threeAddressCode, flowGraph, dominatorGraph, symbolTable):
     threeAddressCode, changed = cp.propagator(threeAddressCode)
-    threeAddressCode, changed = cf.folder(threeAddressCode, changed)
+    threeAddressCode, changed = cf.folder(threeAddressCode, symbolTable, changed)
     threeAddressCode, changed = dcr.deadCodeRemover(threeAddressCode, changed)
     threeAddressCode, changed = cpy.copyPropagator(threeAddressCode, changed)
     threeAddressCode, changed = il.invariantLifter(threeAddressCode, changed, flowGraph, dominatorGraph)
@@ -85,7 +85,7 @@ def optimizerLoop(threeAddressCode, flowGraph, dominatorGraph):
 
     while changed == True:
         threeAddressCode, changed = cp.propagator(threeAddressCode)
-        threeAddressCode, changed = cf.folder(threeAddressCode, changed)
+        threeAddressCode, changed = cf.folder(threeAddressCode, symbolTable, changed)
         threeAddressCode, changed = dcr.deadCodeRemover(threeAddressCode, changed)
         threeAddressCode, changed = cpy.copyPropagator(threeAddressCode, changed)
         threeAddressCode, changed = il.invariantLifter(threeAddressCode, changed, flowGraph, dominatorGraph)

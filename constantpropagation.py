@@ -37,8 +37,17 @@ def _lookingForConstants(stmtsInBlock, changed):
 
     for value, stmt in stmtsInBlock.items():
         if stmt[-1] == 'decl':
-            stmt, changed = _checkingForConstant(variablesWithConstants, stmt, changed)
-            newBlock[value] = stmt
+            if re.match(cc.exprOps, stmt[2]) == None: #If we don't find a relational Operator, it has the chance to be a assignment to just a constant
+                stmt, changed = _checkingForConstant(variablesWithConstants, stmt, changed)
+                newBlock[value] = stmt
+            else:
+                for i in stmt: #If we do, iterate through the statement and see if we can replace any variables with constants, but ignore what we are assigning to
+                    if i in variablesWithConstants and i != stmt[0]:
+                        constant = variablesWithConstants[i]
+                        stmt[stmt.index(i)] = constant
+                        changed = True
+
+                newBlock[value] = stmt
 
         elif stmt[-1] == 'assign':                
             if re.match(cc.exprOps, stmt[2]) == None: #If we don't find a relational Operator, it has the chance to be a assignment to just a constant

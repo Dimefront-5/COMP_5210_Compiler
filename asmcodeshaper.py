@@ -6,7 +6,6 @@
 - ***Work in progress***
 '''
 
-from hmac import new
 import re
 import compilerconstants as cc
 import networkx as nx
