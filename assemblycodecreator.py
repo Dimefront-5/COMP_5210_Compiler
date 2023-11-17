@@ -156,7 +156,7 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
 
     variableMapping = _changingMemoryReferences(symbolTable)
 
-    recreatedASMCode = _recreatingCode(newMappings, variableMapping)
+    recreatedASMCode = _recreatingCode(newMappings, variableMapping, symbolTable)
     
     return recreatedASMCode
 
@@ -237,45 +237,119 @@ def _addingGlobalVars(symbolTable):
                 asmCode.addLine('global', var, ['.byte', '0'])
 
 
-def _recreatingCode(newMappings, variableMapping):
+def _recreatingCode(newMappings, variableMapping, symbolTable):
     global asmCode
 
     newAsmCode = assemblyCode()
 
     currentCode = asmCode.code
 
+    temporaryVariables = {}
+
+    currentTemporaryVariable = ''
+
+    dontAddLine = False
     for scope in currentCode:
         newAsmCode.addScope(scope)
         for block in currentCode[scope]:
             newAsmCode.addBlock(scope, block)
             for line in currentCode[scope][block]:
-                if len(line) > 1:
-                    if _isItARegister(line[1], newMappings, block) is True:
+                if currentTemporaryVariable != '':
+                    temp = currentTemporaryVariable
+                    currentTemporaryVariable, dontAddLine, newAsmCode, temporaryVariables = _replacingTempVars(newMappings, temporaryVariables, block, line, newAsmCode, currentTemporaryVariable, symbolTable, variableMapping, scope)
+                    if temp != currentTemporaryVariable:
+                        currentTemporaryVariable = ''
+                        dontAddLine = False
+
+                elif len(line) > 1:
+                    if _isItARegister(line[1], newMappings, block) == True:
                         line[1] = newMappings[block][line[1]]
 
                     if line[1][:1] == '[' and line[1][-1:] == ']':
-                        if line[1][1:-1] in variableMapping:
-                            line[1] = variableMapping[line[1][1:-1]]
+                        if line[1][1:-1] in variableMapping[scope]:
+                            line[1] = variableMapping[scope][line[1][1:-1]]
 
                         elif 'global' in currentCode and line[1][1:-1] in currentCode['global']:
                             line[1] = line[1][1:-1] + '[' + 'rip' + ']'
-                        
+                        else:
+                            dontAddLine = True
+                            
+                               
                     if len(line) > 2:
-                        if _isItARegister(line[2], newMappings, block) is True:
+                        if _isItARegister(line[2], newMappings, block) == True:
                             line[2] = newMappings[block][line[2]]
 
                         if line[2][:1] == '[' and line[2][-1:] == ']':
-                            if line[2][1:-1] in variableMapping:
-                                line[2] = variableMapping[line[2][1:-1]]
+                            if line[2][1:-1] in variableMapping[scope]:
+                                line[2] = variableMapping[scope][line[2][1:-1]]
 
                             elif 'global' in currentCode and line[2][1:-1] in currentCode['global']:
                                 line[2] = line[2][1:-1] + '[' + 'rip' + ']'
-                        
-                    newAsmCode.addLine(scope, block, line)
+                            
+                            else:
+                                dontAddLine = True
+                                currentTemporaryVariable = line[2][1:-1]
+                                temporaryVariables[line[2][1:-1]].append(line[1])
+
+                    if dontAddLine != True:
+                        newAsmCode.addLine(scope, block, line)
+                    elif currentTemporaryVariable == '':
+                        temporaryVariables[line[1][1:-1]] = [line[2]]
 
                 else:
                     newAsmCode.addLine(scope, block, line)
     return newAsmCode
+
+def _replacingTempVars(newMappings, temporaryVariables, block, line, newAsmCode, currentTemporaryVariable, symbolTable, varialbeMapping, scope):   
+    if len(line) < 3:
+        newAsmCode.addLine(scope, block, line)
+        return '', False, newAsmCode, temporaryVariables
+    
+    
+    if line[2] in newMappings[block] and line[1] not in newMappings[block]:
+        actualRegister = newMappings[block][line[2]]
+        if actualRegister == temporaryVariables[currentTemporaryVariable][1]:
+            line[2] = temporaryVariables[currentTemporaryVariable][0]
+            if line[1][1:-1] in symbolTable.get_vars(currentScope) or line[1][1:-1] in symbolTable.get_args(currentScope):
+                line[1] = varialbeMapping[scope][line[1][1:-1]]
+                newAsmCode.addLine(scope, block, line)
+                return '', False, newAsmCode, temporaryVariables
+
+            else:
+                currentTemporaryVariable = line[1][1:-1]
+                temporaryVariables[currentTemporaryVariable]= [line[2]]
+                return currentTemporaryVariable, True, newAsmCode, temporaryVariables
+                
+
+    elif line[2] in newMappings[block] and line[1] in newMappings[block]:
+        actualRegister = newMappings[block][line[2]]
+        secondActualRegister = newMappings[block][line[1]]
+        if actualRegister == temporaryVariables[currentTemporaryVariable][1]:
+            line[2] = temporaryVariables[currentTemporaryVariable][0]
+        else:
+            line[2] = actualRegister
+        
+        if secondActualRegister == temporaryVariables[currentTemporaryVariable][1]:
+            line[1] = temporaryVariables[currentTemporaryVariable][0]
+        else:
+            line[1] = secondActualRegister
+        
+        newAsmCode.addLine(scope, block, line)
+        return currentTemporaryVariable, True, newAsmCode, temporaryVariables
+
+    elif line[1] in newMappings[block]:
+        actualRegister = newMappings[block][line[1]]
+        if actualRegister == temporaryVariables[currentTemporaryVariable][1]:
+            line[1] = temporaryVariables[currentTemporaryVariable][0]
+            newAsmCode.addLine(scope, block, line)
+            return currentTemporaryVariable, True, newAsmCode, temporaryVariables
+        
+        else:
+            line[1] = actualRegister
+            if line[2][1:-1] in varialbeMapping[scope]:
+                line[2] = varialbeMapping[scope][line[2][1:-1]]
+            newAsmCode.addLine(scope, block, line)
+            return currentTemporaryVariable, True, newAsmCode, temporaryVariables
 
 def _isItARegister(line, newMappings, block):
     if line[:1] == 'r' and line[1:].isnumeric():
@@ -338,34 +412,35 @@ def _changingMemoryReferences(symbolTable):
     stackAddress = 4
     variableMapping = {}
     for scope in symbolTable.symbolTable:
+        variableMapping[scope] = {}
         if scope != 'global':
             variables = symbolTable.get_vars(scope)
             arguments = symbolTable.get_args(scope)
 
             for variable in variables:
                 if variables[variable][0] == 'int' or variables[variable][0] == 'char':#We used to put the value in the symbol table so thats why there is a 0 here
-                    variableMapping[variable] = f'[rbp-{stackAddress}]'
+                    variableMapping[scope][variable] = f'[rbp-{stackAddress}]'
                     stackAddress += 4
                 elif variables[variable][0] == 'float':
-                    variableMapping[variable] = f'[rbp - {stackAddress}]'
+                    variableMapping[scope][variable] = f'[rbp - {stackAddress}]'
                     stackAddress += 8
                 elif variables[variable][0] == 'double':
-                    variableMapping[variable] = f'[rbp - {stackAddress}]'
+                    variableMapping[scope][variable] = f'[rbp - {stackAddress}]'
                     stackAddress += 16
 
             for argument in arguments:
                 if arguments[argument] == 'int' or arguments[argument] == 'char':#We don't put the number the argument is at in the symbol table anymore, so we don't need to check for it
                     if arguments[argument] == 'char':
-                        variableMapping[f'\'{argument}\''] = f'[rbp-{stackAddress}]'
+                        variableMapping[scope][f'{argument}'] = f'[rbp-{stackAddress}]'
 
                     else:
-                        variableMapping[argument] = f'[rbp-{stackAddress}]'
+                        variableMapping[scope][argument]= f'[rbp-{stackAddress}]'
                     stackAddress += 4
                 elif arguments[argument] == 'float':
-                    variableMapping[argument] = f'[rbp - {stackAddress}]'
+                    variableMapping[scope][argument] = f'[rbp - {stackAddress}]'
                     stackAddress += 8
                 elif arguments[argument] == 'double':
-                    variableMapping[argument] = f'[rbp - {stackAddress}]'
+                    variableMapping[scope][argument]= f'[rbp - {stackAddress}]'
                     stackAddress += 16
             
     return variableMapping
@@ -402,9 +477,11 @@ def _returnShaper(codeLine):
     global currentBlock
     global currentRegister
     global asmCode
-
+    
     if re.match(cc.numbers, codeLine[0]):#Checking to see if we need to refrence memory or just a number
         returnCode = ["mov", "rax", codeLine[0]]
+    elif codeLine[0][0] == '\'' or codeLine[0][0] == '\"':  #For characters
+        returnCode = ["mov", "rax", format(ord(codeLine[0][1]), 'x')]
     else:
         returnCode = ["mov", "rax", "[" + codeLine[0] + "]"]
 
