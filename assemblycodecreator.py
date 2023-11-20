@@ -115,6 +115,9 @@ jumpTable = {
     '||': 'or',
 }
 
+global registerMapping
+
+global variableMapping
 
 def codeShaper(threeAddrCode, symbolTable):
     global asmCode
@@ -153,11 +156,11 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
             _addingGlobalVars(symbolTable)
 
 
-    newMappings = _registrySetter()
+    _registrySetter()
 
-    variableMapping = _changingMemoryReferences(symbolTable)
+    _changingMemoryReferences(symbolTable)
 
-    recreatedASMCode = _recreatingCode(newMappings, variableMapping, symbolTable)
+    recreatedASMCode = _recreatingCode(symbolTable)
     
     return recreatedASMCode
 
@@ -238,127 +241,216 @@ def _addingGlobalVars(symbolTable):
                 asmCode.addLine('global', var, ['.byte', '0'])
 
 
-def _recreatingCode(newMappings, variableMapping, symbolTable):
+#Will recreate our assembly code with the new mappings and memory references
+def _recreatingCode(symbolTable):
     global asmCode
+    global currentScope
+    global currentBlock
+
 
     newAsmCode = assemblyCode()
 
-    currentCode = asmCode.code
 
     temporaryVariables = {}
 
     currentTemporaryVariable = ''
 
-    dontAddLine = False
-    for scope in currentCode:
+    for scope in asmCode.code:
         newAsmCode.addScope(scope)
-        for block in currentCode[scope]:
+        currentScope = scope
+        for block in asmCode.code[scope]:
+            currentBlock = block
             newAsmCode.addBlock(scope, block)
-            for line in currentCode[scope][block]:
-                if currentTemporaryVariable != '':
-                    temp = currentTemporaryVariable
-                    currentTemporaryVariable, dontAddLine, newAsmCode, temporaryVariables = _replacingTempVars(newMappings, temporaryVariables, block, line, newAsmCode, currentTemporaryVariable, symbolTable, variableMapping, scope)
-                    if temp != currentTemporaryVariable:
-                        currentTemporaryVariable = ''
-                        dontAddLine = False
+            newAsmCode = _lookingThroughLines(symbolTable, newAsmCode, temporaryVariables, currentTemporaryVariable)
 
-                elif len(line) > 1:
-                    if _isItARegister(line[1], newMappings, block) == True:
-                        line[1] = newMappings[block][line[1]]
-
-                    if line[1][:1] == '[' and line[1][-1:] == ']':
-                        if line[1][1:-1] in variableMapping[scope]:
-                            line[1] = variableMapping[scope][line[1][1:-1]]
-
-                        elif 'global' in currentCode and line[1][1:-1] in currentCode['global']:
-                            line[1] = line[1][1:-1] + '[' + 'rip' + ']'
-                        else:
-                            dontAddLine = True
-                            
-                               
-                    if len(line) > 2:
-                        if _isItARegister(line[2], newMappings, block) == True:
-                            line[2] = newMappings[block][line[2]]
-
-                        if line[2][:1] == '[' and line[2][-1:] == ']':
-                            if line[2][1:-1] in variableMapping[scope]:
-                                line[2] = variableMapping[scope][line[2][1:-1]]
-
-                            elif 'global' in currentCode and line[2][1:-1] in currentCode['global']:
-                                line[2] = line[2][1:-1] + '[' + 'rip' + ']'
-                            
-                            else:
-                                dontAddLine = True
-                                currentTemporaryVariable = line[2][1:-1]
-                                temporaryVariables[line[2][1:-1]].append(line[1])
-
-                    if dontAddLine != True:
-                        newAsmCode.addLine(scope, block, line)
-                    elif currentTemporaryVariable == '':
-                        temporaryVariables[line[1][1:-1]] = [line[2]]
-
-                else:
-                    newAsmCode.addLine(scope, block, line)
     return newAsmCode
 
-def _replacingTempVars(newMappings, temporaryVariables, block, line, newAsmCode, currentTemporaryVariable, symbolTable, varialbeMapping, scope):   
-    if len(line) < 3:
-        newAsmCode.addLine(scope, block, line)
+#Walks through each line to see if we can change any of the temporary variables to the correct registers or memory references
+def _lookingThroughLines(symbolTable, newAsmCode, temporaryVariables, currentTemporaryVariable):
+    global currentScope
+    global currentBlock
+    global asmCode
+    global registerMapping
+    global variableMapping
+
+
+
+    dontAddLine = False
+    for line in asmCode.code[currentScope][currentBlock]:
+
+        if currentTemporaryVariable != '':
+            newAsmCode, temporaryVariables, currentTemporaryVariable, dontAddLine = _changingTempVars(symbolTable, newAsmCode, temporaryVariables, currentTemporaryVariable, line)
+
+        elif len(line) > 1:
+            line, currentTemporaryVariable, dontAddLine = _isThisARegisterOrAMemoryReference(line, 1, dontAddLine)
+                            
+                               
+            if len(line) > 2:
+                line, currentTemporaryVariable, dontAddLine = _isThisARegisterOrAMemoryReference(line, 2, dontAddLine)
+                
+                if currentTemporaryVariable != '':
+                    temporaryVariables[currentTemporaryVariable].append(line[1])
+
+            if dontAddLine != True:
+                newAsmCode.addLine(currentScope, currentBlock, line)
+
+            elif currentTemporaryVariable == '':
+                temporaryVariables[line[1][1:-1]] = [line[2]]
+
+        else:
+            newAsmCode.addLine(currentScope, currentBlock, line)
+
+    return newAsmCode
+
+#Seeing if our line contains a register or a memory reference
+def _isThisARegisterOrAMemoryReference(line, index, dontAddLine):
+    global currentScope
+    global currentBlock
+    global asmCode
+    global registerMapping
+    global variableMapping
+
+
+    currentTemporaryVariable = ''
+    if _isItARegister(line[index], registerMapping, currentBlock) == True:
+        line[index] = registerMapping[currentBlock][line[index]]
+
+    if line[index][:1] == '[' and line[index][-1:] == ']':
+        if line[index][1:-1] in variableMapping[currentScope]:
+            line[index] = variableMapping[currentScope][line[index][1:-1]]
+
+        elif 'global' in asmCode.code and line[index][1:-1] in asmCode.code['global']:
+            line[index] = line[index][1:-1] + '[' + 'rip' + ']'
+                
+        else:#if it is a temporary variable
+            dontAddLine = True
+            if index == 2:
+                currentTemporaryVariable = line[index][1:-1]
+    
+    return line, currentTemporaryVariable, dontAddLine
+
+#Changes our temporary variables to the correct registers and memory references and removes the temp variables from the code
+def _changingTempVars(symbolTable, newAsmCode, temporaryVariables, currentTemporaryVariable, line):
+    temp = currentTemporaryVariable
+    
+    currentTemporaryVariable, dontAddLine, newAsmCode, temporaryVariables = _replacingTempVars(temporaryVariables, line, newAsmCode, currentTemporaryVariable, symbolTable)
+    
+    if temp != currentTemporaryVariable:#If we are no longer using the same temporary variable, we need to add the line that we were working on
+        currentTemporaryVariable = ''
+        dontAddLine = False
+
+    return newAsmCode,temporaryVariables, currentTemporaryVariable, dontAddLine
+
+#Replaces our temporary variables with the correct registers and memory references
+def _replacingTempVars(temporaryVariables, line, newAsmCode, currentTemporaryVariable, symbolTable):   
+    global currentScope
+    global currentBlock
+    global registerMapping
+    global variableMapping
+    
+    if len(line) < 3:#If we ever have a return or a leave or a goto
+        newAsmCode.addLine(currentScope, currentBlock, line)
         return '', False, newAsmCode, temporaryVariables
     
     
-    if line[2] in newMappings[block] and line[1] not in newMappings[block]:
-        actualRegister = newMappings[block][line[2]]
-        if actualRegister == temporaryVariables[currentTemporaryVariable][1]:
-            line[2] = temporaryVariables[currentTemporaryVariable][0]
-            if line[1][1:-1] in symbolTable.get_vars(currentScope) or line[1][1:-1] in symbolTable.get_args(currentScope):
-                line[1] = varialbeMapping[scope][line[1][1:-1]]
-                newAsmCode.addLine(scope, block, line)
-                return '', False, newAsmCode, temporaryVariables
+    destination = line[1]
+    source = line[2]
 
-            else:
-                currentTemporaryVariable = line[1][1:-1]
-                temporaryVariables[currentTemporaryVariable]= [line[2]]
-                return currentTemporaryVariable, True, newAsmCode, temporaryVariables
+    if source in registerMapping[currentBlock] and destination not in registerMapping[currentBlock]: #is the destination not a register and is line[2] a register
+        return _remappingSourceRegisters(line, temporaryVariables, currentTemporaryVariable, newAsmCode, symbolTable)
                 
 
-    elif line[2] in newMappings[block] and line[1] in newMappings[block]:
-        actualRegister = newMappings[block][line[2]]
-        secondActualRegister = newMappings[block][line[1]]
-        if actualRegister == temporaryVariables[currentTemporaryVariable][1]:
-            line[2] = temporaryVariables[currentTemporaryVariable][0]
-        else:
-            line[2] = actualRegister
-        
-        if secondActualRegister == temporaryVariables[currentTemporaryVariable][1]:
-            line[1] = temporaryVariables[currentTemporaryVariable][0]
-        else:
-            line[1] = secondActualRegister
-        
-        newAsmCode.addLine(scope, block, line)
+    elif source in registerMapping[currentBlock] and destination in registerMapping[currentBlock]: #are they both registers?
+        line = _remappingBothRegisters(line, temporaryVariables, currentTemporaryVariable, source, destination)
+        newAsmCode.addLine(currentScope, currentBlock, line)
         return currentTemporaryVariable, True, newAsmCode, temporaryVariables
 
-    elif line[1] in newMappings[block]:
-        actualRegister = newMappings[block][line[1]]
-        if actualRegister == temporaryVariables[currentTemporaryVariable][1]:
-            line[1] = temporaryVariables[currentTemporaryVariable][0]
-            newAsmCode.addLine(scope, block, line)
+    elif destination in registerMapping[currentBlock]:#Is the destination a register?
+        newAsmCode = _remappingDestRegisters(line, temporaryVariables, currentTemporaryVariable, newAsmCode)
+        
+        return currentTemporaryVariable, True, newAsmCode, temporaryVariables
+
+#If the dest register is a temporary variable, we need to change it to the correct register
+def _remappingDestRegisters(line, temporaryVariables, currentTemporaryVariable, newAsmCode):
+    global currentScope
+    global currentBlock
+    global registerMapping
+    global variableMapping
+
+
+    destination = line[1]
+    source = line[2]
+
+    actualRegister = registerMapping[currentBlock][destination]
+
+    if actualRegister == temporaryVariables[currentTemporaryVariable][1]:#Can the destination register be treated as the temporary variable register
+        line[1] = temporaryVariables[currentTemporaryVariable][0]
+        newAsmCode.addLine(currentScope, currentBlock, line)
+        return newAsmCode
+    
+    else:
+        line[1] = actualRegister
+        if source[1:-1] in variableMapping[currentScope]:
+            line[2] = variableMapping[currentScope][source[1:-1]]
+            
+        newAsmCode.addLine(currentScope, currentBlock, line)
+        return newAsmCode
+
+#If the source register is a temporary variable, we need to change it to the correct register
+def _remappingSourceRegisters(line, temporaryVariables, currentTemporaryVariable, newAsmCode, symbolTable):
+    global currentScope
+    global currentBlock
+    global registerMapping
+    global variableMapping
+
+    destination = line[1]
+    source = line[2]
+
+    actualRegister = registerMapping[currentBlock][source]
+
+    if actualRegister == temporaryVariables[currentTemporaryVariable][1]:#Is the register a register we can treat as the temporary variable register
+        line[2] = temporaryVariables[currentTemporaryVariable][0]
+        if destination[1:-1] in symbolTable.get_vars(currentScope) or destination[1:-1] in symbolTable.get_args(currentScope):#If the destination address is a permanent variable we are done fixing temp variables
+            line[1] = variableMapping[currentScope][destination[1:-1]]
+            newAsmCode.addLine(currentScope, currentBlock, line)
+            return '', False, newAsmCode, temporaryVariables
+
+        else:#If it isn't we need to look at the new temporary variable in the code
+            currentTemporaryVariable = destination[1:-1]
+            temporaryVariables[currentTemporaryVariable]= [source]
             return currentTemporaryVariable, True, newAsmCode, temporaryVariables
         
-        else:
-            line[1] = actualRegister
-            if line[2][1:-1] in varialbeMapping[scope]:
-                line[2] = varialbeMapping[scope][line[2][1:-1]]
-            newAsmCode.addLine(scope, block, line)
-            return currentTemporaryVariable, True, newAsmCode, temporaryVariables
+#If both are registers, (For math and whatnot) we need to change them to the correct registers
+def _remappingBothRegisters(line, temporaryVariables, currentTemporaryVariable):
+    global currentBlock
+    global registerMapping
 
+    destination = line[1]
+    source = line[2]
+
+    actualRegister = registerMapping[currentBlock][source]
+    secondActualRegister = registerMapping[currentBlock][destination]
+
+    if actualRegister == temporaryVariables[currentTemporaryVariable][1]:#Can the destination register be treated as the temporary variable register
+        line[2] = temporaryVariables[currentTemporaryVariable][0]
+    else:
+        line[2] = actualRegister
+    
+    if secondActualRegister == temporaryVariables[currentTemporaryVariable][1]:#Can the source register be treated as the temporary variable register
+        line[1] = temporaryVariables[currentTemporaryVariable][0]
+    else:
+        line[1] = secondActualRegister
+    
+    return line
+
+#Checks to see if a line is a register
 def _isItARegister(line, newMappings, block):
     if line[:1] == 'r' and line[1:].isnumeric():
         if line in newMappings[block]:
             return True
     return False
 
-
+#Creates a new mapping for our registers
 def _registrySetter():
     global asmCode
 
@@ -383,14 +475,15 @@ def _registrySetter():
                             else:
                                 registersInBlock[block][line[2]][1] = index
 
-    return _registerAllocator(registersInBlock)
+    _registerAllocator(registersInBlock)
 
-
+#Allocates registers to our code
 def _registerAllocator(registersInBlock):
-    newMappings = {}
+    global registerMapping
+    registerMapping = {}
 
     for block in registersInBlock:
-        newMappings[block] = {}
+        registerMapping[block] = {}
 
         numberOfRegisters = len(registersInBlock[block])
 
@@ -399,17 +492,17 @@ def _registerAllocator(registersInBlock):
         else:
             registerList = ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15']
             for register in registersInBlock[block]:
-                newMappings[block][register] = registerList[0]
+                registerMapping[block][register] = registerList[0]
                 registerList.pop(0)
-
-    return newMappings
 
 
 def _liveAnalysis(registersInBlock, block):
     pass
 
-
+#Will assign refrences to our variables in the stack
 def _changingMemoryReferences(symbolTable):
+    global variableMapping
+
     stackAddress = 4
     variableMapping = {}
     for scope in symbolTable.symbolTable:
@@ -443,9 +536,7 @@ def _changingMemoryReferences(symbolTable):
                 elif arguments[argument] == 'double':
                     variableMapping[scope][argument]= f'[rbp - {stackAddress}]'
                     stackAddress += 16
-            
-    return variableMapping
-                
+                            
 
 #Shapes each functions code into assembly
 def _codeShaper(codeLine):
@@ -503,13 +594,8 @@ def _assignShaper(codeLine):
         _multipleIfShaper(codeLine)
     else:
         register = currentRegister.getRegister()
-        if not re.match(cc.numbers, codeLine[1]):#is it just a number or a variable
-            assignCode = ["mov", register, "[" + codeLine[1] + "]"]
-            asmCode.addLine(currentScope, currentBlock, assignCode)
-            assignCode = ["mov", "[" + codeLine[0] + "]", register]
-            asmCode.addLine(currentScope, currentBlock, assignCode)
-        else:
-            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", codeLine[1]])
+        _movAdder(codeLine[1], register)
+        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", register])
 
 
 
@@ -546,7 +632,7 @@ def _shiftChecking(codeLine, operation):
             _shiftFinder(codeLine, 1, 3, 'right')
         else:
             _shiftFinder(codeLine, 1, 3, 'left')
-            
+
     elif codeLine[3].isnumeric() and is_power_of_2(int(codeLine[3])):#If we are dividing by an even number, we can just shift the number to the left
         if operation == 'div':
             _shiftFinder(codeLine, 3, 1, 'right')
@@ -611,8 +697,6 @@ def _operatorShaper(codeLine, instruction):
 
     asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", register])
 
-
-
 def _movAdder(value, register):
     global currentScope
     global currentBlock
@@ -622,6 +706,7 @@ def _movAdder(value, register):
     if re.match(cc.numbers, value):
         asmCode.addLine(currentScope, currentBlock, ["mov", register, value])
         return 'number'
+    
     elif value[0:2] == '0x':
         asmCode.addLine(currentScope, currentBlock, ["mov", register, value[2:]])
         return 'number'

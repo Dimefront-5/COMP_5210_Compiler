@@ -483,8 +483,6 @@ def _parseEndofDecl(tokens, local_decl, declType, declId):
             memoryNode = ASTNode('&')
             index += 1
 
-        first_number_index = index
-
         exprNode = _parseExprSetup(tokens)
 
         if exprNode != None: #If it isn't none, it is a number/expression that results in a number
@@ -556,6 +554,30 @@ def _parseEndofDeclNumber(tokens, local_decl, declType, declId, exprNode):
             return local_decl
         else:
             _customError("Error: Invalid local_decl, missing a \';\'", tokens, index)
+
+    if declType == 'char':
+        assignedTo = exprNode.return_value()
+
+        idType = symbolTable.get_type(assignedTo, scope)
+        globalisType = symbolTable.get_type(assignedTo, "global") #Checking to see if the variable is declared on a global or local scale at least.
+        functionArguments = symbolTable.get_args(scope)
+
+        if idType != None:
+            idType = idType[0] #We want to get the type of the variable
+
+        elif globalisType != None:
+            idType = globalisType
+
+        elif assignedTo in functionArguments:
+            idType = functionArguments[assignedTo]
+
+        if idType == 'char':
+            index += 1
+            return local_decl
+        
+        else:
+            _customError('Error: Invalid assignment, expected ' + declType + ' but received a non-' + declType + ' value', tokens, index)
+        
     else:
         index -= 1 #Go back to number start
         _customError('Error: Invalid assignment, expected ' + declType + ' but received a non-' + declType + ' value', tokens, index)
