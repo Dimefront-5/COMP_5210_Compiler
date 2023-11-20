@@ -7,6 +7,7 @@
 '''
 
 import re
+from threading import current_thread
 
 import compilerconstants as cc
 
@@ -545,6 +546,7 @@ def _shiftChecking(codeLine, operation):
             _shiftFinder(codeLine, 1, 3, 'right')
         else:
             _shiftFinder(codeLine, 1, 3, 'left')
+            
     elif codeLine[3].isnumeric() and is_power_of_2(int(codeLine[3])):#If we are dividing by an even number, we can just shift the number to the left
         if operation == 'div':
             _shiftFinder(codeLine, 3, 1, 'right')
@@ -570,10 +572,7 @@ def _shiftFinder(codeLine, codeLineIndex, oppositeIndex, direction):
     shiftNumber = get_shift_count(int(codeLine[codeLineIndex]))
     register = currentRegister.getRegister()
 
-    if re.match(cc.numbers, codeLine[codeLineIndex]):
-        asmCode.addLine(currentScope, currentBlock, ["mov", register, codeLine[codeLineIndex]])
-    else:
-        asmCode.addLine(currentScope, currentBlock, ["mov", register , '[' + codeLine[oppositeIndex] + "]"])
+    _movAdder(codeLine[oppositeIndex], register)
 
     if direction == 'left':
         asmCode.addLine(currentScope, currentBlock, ["shl", register , str(shiftNumber)])
@@ -606,20 +605,51 @@ def _operatorShaper(codeLine, instruction):
 
     register = currentRegister.getRegister()
 
-    if re.match(cc.numbers, codeLine[1]):
-        asmCode.addLine(currentScope, currentBlock, ["mov", register, codeLine[1]])
-    else:
-        asmCode.addLine(currentScope, currentBlock, ["mov", register, '[' + codeLine[1] + "]"])
+    _movAdder(codeLine[1], register)
     
-    if re.match(cc.numbers, codeLine[3]):
-        asmCode.addLine(currentScope, currentBlock, [instruction, register, codeLine[3]])
-    else:
-        secondRegister = currentRegister.getRegister()
-        asmCode.addLine(currentScope, currentBlock, ["mov", secondRegister, '[' + codeLine[3] + "]"])
-        asmCode.addLine(currentScope, currentBlock, [instruction, register, secondRegister])
+    _secondInstructionBlockShaper(instruction, register, codeLine[3])
 
     asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", register])
 
+
+
+def _movAdder(value, register):
+    global currentScope
+    global currentBlock
+    global asmCode
+
+
+    if re.match(cc.numbers, value):
+        asmCode.addLine(currentScope, currentBlock, ["mov", register, value])
+        return 'number'
+    elif value[0:2] == '0x':
+        asmCode.addLine(currentScope, currentBlock, ["mov", register, value[2:]])
+        return 'number'
+
+    elif value[0] == '\'' or value[0] == '\"':
+        asmCode.addLine(currentScope, currentBlock, ["mov", register, format(ord(value[1]), 'x')])
+        return 'number'
+    
+    else:
+        asmCode.addLine(currentScope, currentBlock, ["mov", register, '[' + value + "]"])
+        return 'variable'
+
+def _secondInstructionBlockShaper(operation, register1, value):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+
+    if re.match(cc.numbers, value):
+        asmCode.addLine(currentScope, currentBlock, [operation, register1, value])
+    elif value[0:2] == '0x':
+        asmCode.addLine(currentScope, currentBlock, [operation, register1, value[2:]])
+    elif value[0] == '\'' or value[0] == '\"':
+        asmCode.addLine(currentScope, currentBlock, [operation, register1, format(ord(value[1]), 'x')])
+    else:
+        register2 = currentRegister.getRegister()
+        asmCode.addLine(currentScope, currentBlock, ['mov', register2, '[' + value + "]"])
+        asmCode.addLine(currentScope, currentBlock, [operation, register1, register2])
 
 
 #shapes our call statements
@@ -654,17 +684,9 @@ def _ifShaper(codeLine):
     if not (jumpExpression == 'and' or jumpExpression == 'or'):
         register = currentRegister.getRegister()
 
-        if re.match(cc.numbers, codeLine[1]):
-            asmCode.addLine(currentScope, currentBlock, ["mov", register, codeLine[1]])
-        else:
-            asmCode.addLine(currentScope, currentBlock, ["mov", register, '[' + codeLine[1] + "]"])
+        _movAdder(codeLine[1], register)
         
-        if re.match(cc.numbers, codeLine[3]):
-            asmCode.addLine(currentScope, currentBlock, ["cmp", register, codeLine[3]])
-        else:
-            secondRegister = currentRegister.getRegister()
-            asmCode.addLine(currentScope, currentBlock, ["mov", secondRegister, '[' + codeLine[3] + "]"])
-            asmCode.addLine(currentScope, currentBlock, ["cmp", register, secondRegister])
+        _secondInstructionBlockShaper("cmp", register, codeLine[3])
         
         asmCode.addLine(currentScope, currentBlock, [jumpExpression, 'L' + codeLine[7]])
     else:
@@ -690,19 +712,11 @@ def _multipleIfShaper(codeLine):
 
     register = currentRegister.getRegister()
 
-    if re.match(cc.numbers, codeLine[1]):
-        asmCode.addLine(currentScope, currentBlock, ["mov", register, codeLine[1]])
-    else:
-        asmCode.addLine(currentScope, currentBlock, ["mov", register, '[' + codeLine[1] + "]"])
+    _movAdder(codeLine[1], register)
     
     jumpExpression = jumpTable[codeLine[2]]
 
-    if re.match(cc.numbers, codeLine[3]):
-        asmCode.addLine(currentScope, currentBlock, ["cmp", register, codeLine[3]])
-    else:
-        secondRegister = currentRegister.getRegister()
-        asmCode.addLine(currentScope, currentBlock, ["mov", secondRegister, '[' + codeLine[3] + "]"])
-        asmCode.addLine(currentScope, currentBlock, ["cmp", register, secondRegister])
+    _secondInstructionBlockShaper("cmp", register, codeLine[3])
     
     asmCode.addLine(currentScope, currentBlock, [jumpExpression, 'REPLACE'])#We leave this like this so we can change it later
 

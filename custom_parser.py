@@ -506,7 +506,10 @@ def _parseEndofDecl(tokens, local_decl, declType, declId):
 def _expressionRecreator(tokens, first_number_index):
     global index
     expression = ''
-    while (first_number_index < index):
+    if first_number_index + 1 == index: #If there is only one token, we want to return it
+        return tokens[str(first_number_index)][cc.TOKEN_INDEX]
+    
+    while (first_number_index < index):        
         if tokens[str(first_number_index)][cc.TOKEN_INDEX] == ')':
             expression = expression[:-1] #We want to remove the last space between the number and the close parens.
 
@@ -808,25 +811,30 @@ def _parseReturnStmtChar(tokens):
 def _parseReturnStmtNumberAndID(tokens, first_number_index):
     global index
 
+    
     returnValue = _expressionRecreator(tokens, first_number_index)
 
     if len(returnValue) == 1 and tokens[str(first_number_index)][cc.TOKEN_TYPE_INDEX] == 'identifier':#Is our return a variable?
-
         idType = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], scope)
         globalisType = symbolTable.get_type(tokens[str(first_number_index)][cc.TOKEN_INDEX], "global") #Checking to see if the variable is declared on a global or local scale at least.
         functionArguments = symbolTable.get_args(scope)
 
-        if globalisType != None:
+        
+        if idType != None:
+            idType = idType[0] #We want to get the type of the variable
+
+        elif globalisType != None:
             idType = globalisType
 
-        elif tokens[str(first_number_index)][cc.TOKEN_INDEX] in functionArguments:
-            idType = functionArguments[tokens[str(first_number_index)][cc.TOKEN_INDEX]]
+        elif returnValue in functionArguments:
+            idType = functionArguments[returnValue]
 
-        elif idType == None:
-            _customError("Error: Undeclared identifier", tokens, index)
+        else:
+            _customError("Error: Invalid return statement, variable isn't declared", tokens, index)
 
+        
+        
     scope_type = symbolTable.get_scope_type(scope)
-
     #If the type of the scope is a number type and is our expr a number type, or is it a big expr that will result in a number?
     if re.match(grammar['NumType'][0], scope_type) and (len(returnValue) > 1 or tokens[str(first_number_index)][cc.TOKEN_TYPE_INDEX] == 'number'): #A number can fit in with both a float and int
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
@@ -837,7 +845,7 @@ def _parseReturnStmtNumberAndID(tokens, first_number_index):
         _customError("Error: Invalid return type", tokens, index)
         
     #Does our scope type match the type of our variable, or are both of our types number types?
-    elif idType == scope_type or (re.match(grammar['NumType'][0], idType[0]) and re.match(grammar['NumType'][0], scope_type)): #We are seeing if the type of our variable matches the return type of the function
+    elif idType == scope_type or (re.match(grammar['NumType'][0], idType) and re.match(grammar['NumType'][0], scope_type)): #We are seeing if the type of our variable matches the return type of the function
         if tokens[str(index)][cc.TOKEN_INDEX] == ';':
             index += 1
             return returnValue
