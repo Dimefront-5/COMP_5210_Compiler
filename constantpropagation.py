@@ -59,6 +59,9 @@ def _lookingForConstants(stmtsInBlock, changed):
                         constant = variablesWithConstants[i]
                         stmt[stmt.index(i)] = constant
                         changed = True
+                
+                if stmt[0] in variablesWithConstants:
+                    del variablesWithConstants[stmt[0]]
 
                 newBlock[value] = stmt
 

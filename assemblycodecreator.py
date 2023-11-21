@@ -1,13 +1,12 @@
 '''
 -@author: Tyler Ray
--@date: 11/16/2023
+-@date: 11/21/2023
 
 - This file will convert our optimized 3 address code into assembly code
 - ***Work in progress***
 '''
 
 import re
-from threading import current_thread
 
 import compilerconstants as cc
 
@@ -361,7 +360,7 @@ def _replacingTempVars(temporaryVariables, line, newAsmCode, currentTemporaryVar
                 
 
     elif source in registerMapping[currentBlock] and destination in registerMapping[currentBlock]: #are they both registers?
-        line = _remappingBothRegisters(line, temporaryVariables, currentTemporaryVariable, source, destination)
+        line = _remappingBothRegisters(line, temporaryVariables, currentTemporaryVariable)
         newAsmCode.addLine(currentScope, currentBlock, line)
         return currentTemporaryVariable, True, newAsmCode, temporaryVariables
 
@@ -485,19 +484,105 @@ def _registerAllocator(registersInBlock):
     for block in registersInBlock:
         registerMapping[block] = {}
 
-        numberOfRegisters = len(registersInBlock[block])
+        registerList = ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15']
+        registerCount = len(registerList)
+        index = -1
+        for register in registersInBlock[block]:#I am just going to assign registers in the order they appear in the code, I won't leave values in registers.
+            index = (index + 1) % registerCount
+            registerMapping[block][register] = registerList[index]
 
-        if numberOfRegisters > 14:
-            _liveAnalysis(registersInBlock[block], block)
-        else:
-            registerList = ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15']
-            for register in registersInBlock[block]:
-                registerMapping[block][register] = registerList[0]
-                registerList.pop(0)
+'''My attempt to do live analysis was unsucessful. I am leaving it here for now in case I want to come back to it later
+def _liveAnalysis(block, symbolTable):
+    global registerMapping
+
+    liveRanges = _liveRangeFinder(block, symbolTable)
+
+    _liveRangeAllocator(block, liveRanges)
+
+def _liveRangeFinder(block, symbolTable):
+    global asmCode
+    
+    code = asmCode.code
+    liveAnalysis = {}
+    for scope in code:
+        variables = symbolTable.get_vars(scope)
+        arguments = symbolTable.get_args(scope)
+
+        for currentBlock in code[scope]:
+            if block == currentBlock:
+                for index, line in enumerate(code[scope][block]):
+                    if len(line) > 1:
+                        if line[1][:1] == '[' and line[1][-1:] == ']':
+                            variable = line[1][1:-1]
+                            if variable in variables or variable in arguments:
+                                if variable in liveAnalysis:
+                                    liveAnalysis[variable][1] = index
+                                else:
+                                    liveAnalysis[variable] = [index, index] 
+
+                        if len(line) > 2:
+                            if line[2][:1] == '[' and line[2][-1:] == ']':
+                                variable = line[2][1:-1]
+                                if variable in variables or variable in arguments:
+                                    if variable in liveAnalysis:
+                                        liveAnalysis[variable][1] = index
+                                    else:
+                                        liveAnalysis[variable] = [index, index]  
+                
+    return liveAnalysis
+
+def _liveRangeAllocator(block, liveAnalysis):
+    global registerMapping
+
+    registerList = ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15']
+    registerMapping = {}
+    if len(liveAnalysis) > 14:
+        print('Not enough registers')
+
+    else:
+        registerMapping[block] = {}
+        for variable in liveAnalysis:
+            registerMapping[block][variable] = registerList[0]
+            registerList.pop(0)
 
 
-def _liveAnalysis(registersInBlock, block):
-    pass
+        _changingRegisters(block)
+
+
+
+def _changingRegisters(block):
+    global asmCode
+    global registerMapping
+
+    code = asmCode.code
+    registersToChange = {}
+    newBlock = []
+    for scope in code:
+        for currentBlock in code[scope]:
+            if currentBlock == block:
+                for line in code[scope][currentBlock]:
+                    if len(line) > 1:
+                        if line[1][:1] == 'r' and line[1][1:].isnumeric():
+                            if line[2][1:-1] in registerMapping[block]:
+                                registersToChange[line[1]] = registerMapping[block][line[2][1:-1]]
+                                line[1] = registerMapping[block][line[2][1:-1]]
+                                
+
+                        if line[1] in registersToChange:
+                            line[1] = registersToChange[line[1]]
+                        
+                        if len(line) > 2:
+                            if line[2][:1] == 'r' and line[2][1:].isnumeric():
+                                if line[1][1:-1] in registerMapping[block]:
+                                    line[2] = registerMapping[block][line[1][1:-1]]
+
+                            if line[2] in registersToChange:
+                                line[2] = registersToChange[line[2]]
+
+                    newBlock.append(line)
+    
+    print(newBlock)
+'''                            
 
 #Will assign refrences to our variables in the stack
 def _changingMemoryReferences(symbolTable):
