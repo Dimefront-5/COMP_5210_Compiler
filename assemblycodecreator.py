@@ -50,7 +50,7 @@ class assemblyCode:
         for scope in self.code:
             if scope != 'global':
                 indent = 0
-                output += ' ' * indent + scope + ':' + '\n'
+                output += ' ' * indent + '.' + scope + '\n'
                 for block in self.code[scope]:
                     indent = 0
                     output += ' ' * indent + block + ':' + '\n'
@@ -73,7 +73,7 @@ class assemblyCode:
                     temp += variableName + ':\n'
                     for line in globalVars[variableName]:
                         temp += ' ' * 3 + line[0] + ' ' + line[1] +  '\n'
-                output = temp + output
+                output = temp + '\n' + output
                 
         return output
     
@@ -235,9 +235,10 @@ def _addingGlobalVars(symbolTable):
 
         elif global_vars[var][0] == 'char':
             if len(global_vars[var]) > 1:
-                asmCode.addLine('global', var, [f'.byte', f'{global_vars[var][1]}'])
+                byteValue = format(ord(global_vars[var][1][1]), 'x')
+                asmCode.addLine('global', var, [f'.byte', f'{byteValue}'])
             else:
-                asmCode.addLine('global', var, ['.byte', '0'])
+                asmCode.addLine('global', var, ['.byte', 0])
 
 
 #Will recreate our assembly code with the new mappings and memory references
@@ -272,8 +273,6 @@ def _lookingThroughLines(symbolTable, newAsmCode, temporaryVariables, currentTem
     global registerMapping
     global variableMapping
 
-
-
     dontAddLine = False
     for line in asmCode.code[currentScope][currentBlock]:
 
@@ -282,8 +281,7 @@ def _lookingThroughLines(symbolTable, newAsmCode, temporaryVariables, currentTem
 
         elif len(line) > 1:
             line, currentTemporaryVariable, dontAddLine = _isThisARegisterOrAMemoryReference(line, 1, dontAddLine)
-                            
-                               
+                                   
             if len(line) > 2:
                 line, currentTemporaryVariable, dontAddLine = _isThisARegisterOrAMemoryReference(line, 2, dontAddLine)
                 
@@ -351,14 +349,12 @@ def _replacingTempVars(temporaryVariables, line, newAsmCode, currentTemporaryVar
         newAsmCode.addLine(currentScope, currentBlock, line)
         return '', False, newAsmCode, temporaryVariables
     
-    
     destination = line[1]
     source = line[2]
 
     if source in registerMapping[currentBlock] and destination not in registerMapping[currentBlock]: #is the destination not a register and is line[2] a register
         return _remappingSourceRegisters(line, temporaryVariables, currentTemporaryVariable, newAsmCode, symbolTable)
                 
-
     elif source in registerMapping[currentBlock] and destination in registerMapping[currentBlock]: #are they both registers?
         line = _remappingBothRegisters(line, temporaryVariables, currentTemporaryVariable)
         newAsmCode.addLine(currentScope, currentBlock, line)
