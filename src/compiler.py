@@ -25,6 +25,7 @@ import sys
 import os
 import networkx as nx
 import matplotlib.pyplot as plt
+import shutil
 
 import warnings
 warnings.filterwarnings("ignore") #This is so we can ignore the matplotlib warning for using a deprecated extension
@@ -70,6 +71,8 @@ def main():
     fileName = os.path.basename(possibleInputFile)[:-2]
     with open(f'{fileName}.asm', 'w') as f:
         f.write(assemblyCode.__str__())
+    
+    shutil.move(f'{fileName}.asm', f'../assemblyFiles/{fileName}.asm')#TODO: REMOVE THIS LINE WHEN DONE TESTING
 
     _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph)
 
