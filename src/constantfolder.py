@@ -6,6 +6,7 @@
 '''
 
 import re
+import sys
 
 import compilerconstants as cc
 import math
@@ -60,6 +61,9 @@ def _checkingForConstants(stmt):
 
 #Performs the constant folding
 def _foldTheConstants(constant1, operation, constant2):
+    if operation == '/' and constant2 == '0':
+        print("Error: Division by zero")
+        sys.exit()
     if re.match(cc.relOps, operation) == None: #If it isn't used in a if statement
         evalString = constant1 + operation + constant2
         evaluatedNumber = eval(evalString)

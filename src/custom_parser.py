@@ -775,7 +775,7 @@ def _parseOneParam(tokens):
     
     elif tokens[str(index)][cc.TOKEN_INDEX] == '\'' or tokens[str(index)][cc.TOKEN_INDEX] == '\"':
         index += 1
-        paramNode = ASTNode(tokens[str(index)][cc.TOKEN_INDEX])
+        paramNode = ASTNode('\'' + tokens[str(index)][cc.TOKEN_INDEX] + '\'')
         params[tokens[str(index)][cc.TOKEN_INDEX]] = 'char'
         index += 2 #We want to skip the closing quote
         return paramNode, params

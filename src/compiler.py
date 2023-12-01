@@ -72,7 +72,7 @@ def main():
     with open(f'{fileName}.asm', 'w') as f:
         f.write(assemblyCode.__str__())
     
-    shutil.move(f'{fileName}.asm', f'../assemblyFiles/{fileName}.asm')#TODO: REMOVE THIS LINE WHEN DONE TESTING
+    shutil.move(f'{fileName}.asm', f'C:/Users/tyler/Documents/COMP-5210/Compiler/assemblyFiles/{fileName}.asm')#TODO: REMOVE THIS LINE WHEN DONE TESTING
 
     _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph)
 

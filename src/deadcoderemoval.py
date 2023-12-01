@@ -90,4 +90,29 @@ def _removingDeadCode(threeAddrCode, deadCodeCandidates):
             changed = True
             threeAddrCode[value[1]][value[2]].pop(value[3])
 
+
+    threeAddrCode, potentialChange = _removingDeadCodeAfterReturnsInBlock(threeAddrCode)
+
+    if changed == False:
+       changed = potentialChange
+
     return threeAddrCode, changed
+
+
+
+def _removingDeadCodeAfterReturnsInBlock(threeAddrCode):#remove dead code after a return statement
+    changed = False
+    for scope in threeAddrCode:
+        if isinstance(threeAddrCode[scope], dict): #Ignoring global variables for now
+            for block in threeAddrCode[scope]:
+                foundReturn = False
+                for key, line in list(threeAddrCode[scope][block].items()):
+                    if foundReturn == True:
+                        changed = True
+                        threeAddrCode[scope][block].pop(key)
+
+                    if line[-1] == 'return':
+                        foundReturn = True
+
+    return threeAddrCode, changed
+                

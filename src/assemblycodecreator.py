@@ -73,7 +73,7 @@ class assemblyCode:
                     temp += variableName + ':\n'
                     for line in globalVars[variableName]:
                         temp += ' ' * 3 + line[0] + ' ' + line[1] +  '\n'
-                output = temp + '\n' + output
+                output = temp + output
                 
         return output
     
@@ -153,8 +153,7 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
         else:
             asmCode.addScope('global')
             _addingGlobalVars(symbolTable)
-
-
+    
     _registrySetter()
 
     _changingMemoryReferences(symbolTable)
@@ -485,100 +484,7 @@ def _registerAllocator(registersInBlock):
         index = -1
         for register in registersInBlock[block]:#I am just going to assign registers in the order they appear in the code, I won't leave values in registers.
             index = (index + 1) % registerCount
-            registerMapping[block][register] = registerList[index]
-
-'''My attempt to do live analysis was unsucessful. I am leaving it here for now in case I want to come back to it later
-def _liveAnalysis(block, symbolTable):
-    global registerMapping
-
-    liveRanges = _liveRangeFinder(block, symbolTable)
-
-    _liveRangeAllocator(block, liveRanges)
-
-def _liveRangeFinder(block, symbolTable):
-    global asmCode
-    
-    code = asmCode.code
-    liveAnalysis = {}
-    for scope in code:
-        variables = symbolTable.get_vars(scope)
-        arguments = symbolTable.get_args(scope)
-
-        for currentBlock in code[scope]:
-            if block == currentBlock:
-                for index, line in enumerate(code[scope][block]):
-                    if len(line) > 1:
-                        if line[1][:1] == '[' and line[1][-1:] == ']':
-                            variable = line[1][1:-1]
-                            if variable in variables or variable in arguments:
-                                if variable in liveAnalysis:
-                                    liveAnalysis[variable][1] = index
-                                else:
-                                    liveAnalysis[variable] = [index, index] 
-
-                        if len(line) > 2:
-                            if line[2][:1] == '[' and line[2][-1:] == ']':
-                                variable = line[2][1:-1]
-                                if variable in variables or variable in arguments:
-                                    if variable in liveAnalysis:
-                                        liveAnalysis[variable][1] = index
-                                    else:
-                                        liveAnalysis[variable] = [index, index]  
-                
-    return liveAnalysis
-
-def _liveRangeAllocator(block, liveAnalysis):
-    global registerMapping
-
-    registerList = ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15']
-    registerMapping = {}
-    if len(liveAnalysis) > 14:
-        print('Not enough registers')
-
-    else:
-        registerMapping[block] = {}
-        for variable in liveAnalysis:
-            registerMapping[block][variable] = registerList[0]
-            registerList.pop(0)
-
-
-        _changingRegisters(block)
-
-
-
-def _changingRegisters(block):
-    global asmCode
-    global registerMapping
-
-    code = asmCode.code
-    registersToChange = {}
-    newBlock = []
-    for scope in code:
-        for currentBlock in code[scope]:
-            if currentBlock == block:
-                for line in code[scope][currentBlock]:
-                    if len(line) > 1:
-                        if line[1][:1] == 'r' and line[1][1:].isnumeric():
-                            if line[2][1:-1] in registerMapping[block]:
-                                registersToChange[line[1]] = registerMapping[block][line[2][1:-1]]
-                                line[1] = registerMapping[block][line[2][1:-1]]
-                                
-
-                        if line[1] in registersToChange:
-                            line[1] = registersToChange[line[1]]
-                        
-                        if len(line) > 2:
-                            if line[2][:1] == 'r' and line[2][1:].isnumeric():
-                                if line[1][1:-1] in registerMapping[block]:
-                                    line[2] = registerMapping[block][line[1][1:-1]]
-
-                            if line[2] in registersToChange:
-                                line[2] = registersToChange[line[2]]
-
-                    newBlock.append(line)
-    
-    print(newBlock)
-'''                            
+            registerMapping[block][register] = registerList[index]                          
 
 #Will assign refrences to our variables in the stack
 def _changingMemoryReferences(symbolTable):
@@ -593,30 +499,33 @@ def _changingMemoryReferences(symbolTable):
             arguments = symbolTable.get_args(scope)
 
             for variable in variables:
-                if variables[variable][0] == 'int' or variables[variable][0] == 'char':#We used to put the value in the symbol table so thats why there is a 0 here
-                    variableMapping[scope][variable] = f'[rbp-{stackAddress}]'
+                if variables[variable][0] == 'int':
+                    variableMapping[scope][variable] = f'DWORD PTR [rbp-{stackAddress}]'
+                    stackAddress += 4
+                elif variables[variable][0] == 'char':#We used to put the value in the symbol table so thats why there is a 0 here
+                    variableMapping[scope][variable] = f'BYTE PTR [rbp-{stackAddress}]'
                     stackAddress += 4
                 elif variables[variable][0] == 'float':
-                    variableMapping[scope][variable] = f'[rbp - {stackAddress}]'
+                    variableMapping[scope][variable] = f'QWORD PTR [rbp-{stackAddress}]'
                     stackAddress += 8
                 elif variables[variable][0] == 'double':
-                    variableMapping[scope][variable] = f'[rbp - {stackAddress}]'
+                    variableMapping[scope][variable] = f'QWORD PTR [rbp-{stackAddress}]'
                     stackAddress += 16
 
-            for argument in arguments:
+            argumentAddress = 4
+            for argument in reversed(arguments): #Needs to be reversed so we can access the arguments in the correct order
                 if arguments[argument] == 'int' or arguments[argument] == 'char':#We don't put the number the argument is at in the symbol table anymore, so we don't need to check for it
                     if arguments[argument] == 'char':
-                        variableMapping[scope][f'{argument}'] = f'[rbp-{stackAddress}]'
-
+                        variableMapping[scope][f'{argument}'] = f'BYTE PTR [rbp+{argumentAddress}]'
                     else:
-                        variableMapping[scope][argument]= f'[rbp-{stackAddress}]'
-                    stackAddress += 4
+                        variableMapping[scope][argument]= f'DWORD PTR [rbp+{argumentAddress}]'
+                    argumentAddress += 4
                 elif arguments[argument] == 'float':
-                    variableMapping[scope][argument] = f'[rbp - {stackAddress}]'
-                    stackAddress += 8
+                    variableMapping[scope][argument] = f'QWORD PTR [rbp+{argumentAddress}]'
+                    argumentAddress += 8
                 elif arguments[argument] == 'double':
-                    variableMapping[scope][argument]= f'[rbp - {stackAddress}]'
-                    stackAddress += 16
+                    variableMapping[scope][argument]= f'QWORD PTR [rbp+{argumentAddress}]'
+                    argumentAddress += 16
                             
 
 #Shapes each functions code into assembly
@@ -629,7 +538,6 @@ def _codeShaper(codeLine):
     statementIndicator = codeLine[-1]
     statementIndicatorForIfs = codeLine[0] #I don't know why I did this, but for some reason I left its at the front. It makes it look nice while debugging but not for consistency.
     
-    hasReturn = False
     if statementIndicator == 'return':
         _returnShaper(codeLine)
     elif statementIndicator == 'assign':
@@ -674,9 +582,15 @@ def _assignShaper(codeLine):
     elif codeLine[2] in jumpTable: #Meaning we have an if statement
         _multipleIfShaper(codeLine)
     else:
-        register = currentRegister.getRegister()
-        _movAdder(codeLine[1], register)
-        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", register])
+        if codeLine[1].isnumeric():
+            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", codeLine[1]])
+        elif codeLine[1][0] == '\'' or codeLine[1][0] == '\"':  #For characters
+            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", format(ord(codeLine[1][1]), 'x')])
+        else:
+            register = currentRegister.getRegister()
+
+            _movAdder(codeLine[1], register)
+            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", register])
 
 
 
@@ -705,7 +619,7 @@ def _shiftChecking(codeLine, operation):
     elif codeLine[3] == '1':
         asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", codeLine[1]])
 
-    elif codeLine[1] == '0' or codeLine[3] == '0':#If either is 0, we can just move 0 into the variable
+    elif codeLine[1] == '0':#we can just move 0 into the variable
         asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", '0'])
 
     elif codeLine[1].isnumeric() and is_power_of_2(int(codeLine[1])):
@@ -829,7 +743,7 @@ def _callShaper(codeLine):
         if re.match(cc.numbers, argument):
             asmCode.addLine(currentScope, currentBlock, ["push", argument])
         elif argument[0] == '\'' or argument[0] == '\"':
-            asmCode.addLine(currentScope, currentBlock, ["push", argument])
+            asmCode.addLine(currentScope, currentBlock, ["push", format(ord(argument[1]), 'x')])
         else:
             asmCode.addLine(currentScope, currentBlock, ["push", "[" + argument + "]"])
 
@@ -918,9 +832,9 @@ def _multipleIfConditional(codeLine, operator):
                 if operator == 'or' and firstConditional == False:#We only change the first conditional of an or statement
                     oppositeJump = oppositeJumps[line[0]]
                     newFinalJump = currentBlock[:1] + str(int(currentBlock[1:]) + 1) 
-                    tempLine = oppositeJump + ' ' + newFinalJump
+                    tempLine = [oppositeJump, newFinalJump]
                 else:
-                    tempLine = line[0] + jumpEnd
+                    tempLine = [line[0], jumpEnd]
 
                 if firstConditional == False:
                     firstConditional = True
