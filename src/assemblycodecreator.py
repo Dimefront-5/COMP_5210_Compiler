@@ -139,7 +139,7 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
             currentScope = scope
             currentBlock = list(threeAddrCode[scope].keys())[0]
             asmCode.addBlock(scope, currentBlock)
-            _createPrelude(symbolTable)
+            _createPrelude(symbolTable, threeAddrCode)
 
             for block in threeAddrCode[scope]:
                 if block != currentBlock: #Want to skip first block since we already made it
@@ -165,47 +165,75 @@ def _generateAssemblyCode(threeAddrCode, symbolTable):
 
 
 #Creates our prelude for when we start a function
-def _createPrelude(symbolTable):
+def _createPrelude(symbolTable, threeAddrCode):
     global currentScope
     global currentBlock
     global asmCode
 
     asmCode.addLine(currentScope, currentBlock, ["push", "rbp"])
     asmCode.addLine(currentScope, currentBlock, ["mov", "rbp", "rsp"])
-    stackSpaceNeeded = _figureOutHowMuchStackSpaceWeNeed(symbolTable)
+    stackSpaceNeeded = _figureOutHowMuchStackSpaceWeNeed(symbolTable, threeAddrCode)
     asmCode.addLine(currentScope, currentBlock, ["sub", "rsp", str(stackSpaceNeeded)])
 
 #Figures out how much stack space we need for a function
-def _figureOutHowMuchStackSpaceWeNeed(symbolTable):
+def _figureOutHowMuchStackSpaceWeNeed(symbolTable, threeAddrCode):
     global currentScope
-
-    spaceNeeded = 0
+    spaceNeeded = 4
 
     arguments = symbolTable.get_args(currentScope)
     variables = symbolTable.get_vars(currentScope)
 
-    for argument in arguments: #The ifs aren't needed sionce we don't care about floats and doubles anymore. I left them in for now just in case
-        if arguments[argument] == 'int' or arguments[argument] == 'char':
-            spaceNeeded += 4
+    foundArguments = []
+    foundVars = []
 
-        elif arguments[argument] == 'float':
-            spaceNeeded += 8
+    for block in threeAddrCode[currentScope]:
+        for key, line in threeAddrCode[currentScope][block].items():
+            if len(line) > 1: 
+                newSpace, foundArguments, foundVars = _doesItNeedSpace(line[1], arguments, variables, foundArguments, foundVars)
+                spaceNeeded += newSpace
 
-        elif arguments[argument] == 'double':
-            spaceNeeded += 16
-    
-    for variable in variables:
-        if variables[variable][0] == 'int' or variables[variable][0] == 'char': #I used to put what number something was in the symbol Table, the type was at [0] and the number was at [1].
-            spaceNeeded += 4
-        
-        elif variables[variable][0] == 'float':
-            spaceNeeded += 8
-        
-        elif variables[variable][0] == 'double':
-            spaceNeeded += 16
-    
-    spaceNeeded += 4
+                if len(line) > 2:
+                    if line[-1] != 'functionCall':
+                        newSpace, foundArguments, foundVars = _doesItNeedSpace(line[2], arguments, variables, foundArguments, foundVars)
+                        spaceNeeded += newSpace
+
+                    if len(line) > 3:
+                        newSpace, foundArguments, foundVars = _doesItNeedSpace(line[3], arguments, variables, foundArguments, foundVars)
+                        spaceNeeded += newSpace
+
+
     return spaceNeeded
+
+
+
+def _doesItNeedSpace(value, arguments, variables, foundarguments, foundvars):
+    global currentScope
+    spaceNeeded = 0
+    if value in arguments and not value in foundarguments:
+        if arguments[value] == 'int' or arguments[value] == 'char':
+            spaceNeeded += 4
+
+        elif arguments[value] == 'float':
+            spaceNeeded += 8
+
+        elif arguments[value] == 'double':
+            spaceNeeded += 16
+
+        foundarguments.append(value)
+
+    elif value in variables and not value in foundvars:
+        if variables[value][0] == 'int' or variables[value][0] == 'char':
+            spaceNeeded += 4
+
+        elif variables[value][0] == 'float':
+            spaceNeeded += 8
+
+        elif variables[value][0] == 'double':
+            spaceNeeded += 16
+        
+        foundvars.append(value)
+
+    return spaceNeeded, foundarguments, foundvars
 
 #Creates our epilogue for when we close out a function
 def _createEpilogue():
