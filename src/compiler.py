@@ -1,11 +1,9 @@
 '''
 -@author: Tyler Ray
--@date: 11/7/2023
+-@date: 12/3/2023
 
 - This file is the main file of the compiler
 - This program will take in a c file and output the compiled version of it
-- ***WORK IN PROGRESS***
-- Finished: Tokenizer, Parser, 3 Address Code Generator, optimizer
 '''
 
 import tokenizer as tk
@@ -33,6 +31,21 @@ warnings.filterwarnings("ignore") #This is so we can ignore the matplotlib warni
 # main function
 def main():
     
+    args, possibleInputFile, inputFile = _initialInput()
+
+    output_for_tokens, parsetree, symbolTable, threeAddressCode, flowGraph = _frontEnd(args, possibleInputFile, inputFile)
+
+    optimizedThreeAddressCode, dominatorGraph = _middleEnd(flowGraph, threeAddressCode)
+
+    _backEnd(possibleInputFile, symbolTable, optimizedThreeAddressCode)
+    
+    _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph)
+
+
+#------ Inward Facing modules
+
+#These are the main parts of our compiler divided into sections instead of all in one main function, they are dicided into front end, middle end, and back end
+def _initialInput():
     args = _commandLineParser()
 
     possibleInputFile = args.file
@@ -41,6 +54,11 @@ def main():
 
     inputFile = open(possibleInputFile, "r")
 
+    return args, possibleInputFile, inputFile
+
+
+#The front end is where we will tokenize, parse, and create the 3 address code to pass to the middle end
+def _frontEnd(args, possibleInputFile, inputFile):
     tokens = tk.main(inputFile)
 
     output_for_tokens, error_output = _tokenOutputFormatter(tokens) #We want to print out the tokens before we remove comments
@@ -61,20 +79,30 @@ def main():
         print("Unoptimized Three Address Code: ")
         print(output)
 
+    return output_for_tokens, parsetree, symbolTable, threeAddressCode, flowGraph
+
+
+#The middle end is where we will optimize the code and then pass it to the back end
+def _middleEnd(flowGraph, threeAddressCode):
     dominatorGraph = dc.dominationCreation(flowGraph)
 
     optimizedThreeAddressCode = optimizerLoop(threeAddressCode, flowGraph, dominatorGraph) #This is where we will call the optimizer, for the ungraded checkpoint ignore this
 
+    return optimizedThreeAddressCode, dominatorGraph
+
+
+#The back end is where we will create the assembly code and output it to a file in the user's directory with the same name as the input file
+def _backEnd(possibleInputFile, symbolTable, optimizedThreeAddressCode):
     assemblyCode = acs.codeShaper(optimizedThreeAddressCode, symbolTable)
 
     fileName = os.path.basename(possibleInputFile)[:-2]
     with open(f'{fileName}.asm', 'w') as f:
         f.write(assemblyCode.__str__())
-    
-    _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedThreeAddressCode, flowGraph, dominatorGraph)
 
-#------ Inward Facing modules
 
+#---------These are the modules that are used by the different sections of our compiler
+
+#will optimize the 3 address code until it can't be optimized anymore
 def optimizerLoop(threeAddressCode, flowGraph, dominatorGraph):
     threeAddressCode, changed = cp.propagator(threeAddressCode)
     threeAddressCode, changed = cf.folder(threeAddressCode, changed)
@@ -257,7 +285,6 @@ def _printingOutput(args, output_for_tokens, parsetree, symbolTable, optimizedCo
             plt.title('dominator graph')
             nx.draw(overallDominatorGraph, pos=pos, with_labels=True, node_size=1200, arrows=True)
             plt.show()
-
 
 
 if __name__ == "__main__":

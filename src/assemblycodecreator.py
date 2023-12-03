@@ -1,10 +1,9 @@
 '''
 -@author: Tyler Ray
--@date: 11/21/2023
+-@date: 12/3/2023
 
 - This file will convert our optimized 3 address code into assembly code
-- ***Work in progress***
-'''
+- '''
 
 import re
 
