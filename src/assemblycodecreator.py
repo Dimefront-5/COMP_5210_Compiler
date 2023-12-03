@@ -188,14 +188,13 @@ def _figureOutHowMuchStackSpaceWeNeed(symbolTable, threeAddrCode):
 
     for block in threeAddrCode[currentScope]:
         for key, line in threeAddrCode[currentScope][block].items():
-            if len(line) > 1: 
+            if len(line) > 1 and line[-1] != 'functionCall':
                 newSpace, foundArguments, foundVars = _doesItNeedSpace(line[1], arguments, variables, foundArguments, foundVars)
                 spaceNeeded += newSpace
 
                 if len(line) > 2:
-                    if line[-1] != 'functionCall':
-                        newSpace, foundArguments, foundVars = _doesItNeedSpace(line[2], arguments, variables, foundArguments, foundVars)
-                        spaceNeeded += newSpace
+                    newSpace, foundArguments, foundVars = _doesItNeedSpace(line[2], arguments, variables, foundArguments, foundVars)
+                    spaceNeeded += newSpace
 
                     if len(line) > 3:
                         newSpace, foundArguments, foundVars = _doesItNeedSpace(line[3], arguments, variables, foundArguments, foundVars)
@@ -256,13 +255,13 @@ def _addingGlobalVars(symbolTable):
         asmCode.addBlock('global', var)
         if global_vars[var][0] == 'int' or global_vars[var][0] == 'float':
             if len(global_vars[var]) > 1:
-                asmCode.addLine('global', var, [f'.long',f'{global_vars[var][1]}'])
+                asmCode.addLine('global', var, [f'.long',f'{global_vars[var][1]}h'])
             else:
                 asmCode.addLine('global', var, ['.long', 0])
 
         elif global_vars[var][0] == 'char':
             if len(global_vars[var]) > 1:
-                byteValue = format(ord(global_vars[var][1][1]), 'x')
+                byteValue = format(ord(global_vars[var][1][1]), 'x') + 'h'
                 asmCode.addLine('global', var, [f'.byte', f'{byteValue}'])
             else:
                 asmCode.addLine('global', var, ['.byte', 0])
@@ -588,9 +587,9 @@ def _returnShaper(codeLine):
     global asmCode
     
     if re.match(cc.numbers, codeLine[0]):#Checking to see if we need to refrence memory or just a number
-        returnCode = ["mov", "rax", codeLine[0]]
+        returnCode = ["mov", "rax", f'{int(codeLine[0]):x}h']
     elif codeLine[0][0] == '\'' or codeLine[0][0] == '\"':  #For characters
-        returnCode = ["mov", "rax", format(ord(codeLine[0][1]), 'x')]
+        returnCode = ["mov", "rax", format(ord(codeLine[0][1]), 'x') + "h"]
     else:
         returnCode = ["mov", "rax", "[" + codeLine[0] + "]"]
 
@@ -611,9 +610,9 @@ def _assignShaper(codeLine):
         _multipleIfShaper(codeLine)
     else:
         if codeLine[1].isnumeric():
-            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", codeLine[1]])
+            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", f'{int(codeLine[1]):x}h' ])
         elif codeLine[1][0] == '\'' or codeLine[1][0] == '\"':  #For characters
-            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", format(ord(codeLine[1][1]), 'x')])
+            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", format(ord(codeLine[1][1]), 'x') + "h"])
         else:
             register = currentRegister.getRegister()
 
@@ -642,13 +641,13 @@ def _exprShaper(codeLine):
 #Then will see if we can shift it instead of using the actual operation
 def _shiftChecking(codeLine, operation):
     if codeLine[1] == '1':#If we are multiplying by 1, we can just move the number into the variable
-        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", codeLine[3]])
+        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", f'{int(codeLine[3]):x}h'])
 
     elif codeLine[3] == '1':
-        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", codeLine[1]])
+        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", f'{int(codeLine[1]):x}h'])
 
     elif codeLine[1] == '0':#we can just move 0 into the variable
-        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", '0'])
+        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", '0h'])
 
     elif codeLine[1].isnumeric() and is_power_of_2(int(codeLine[1])):
         if operation == 'div':
@@ -684,9 +683,9 @@ def _shiftFinder(codeLine, codeLineIndex, oppositeIndex, direction):
     _movAdder(codeLine[oppositeIndex], register)
 
     if direction == 'left':
-        asmCode.addLine(currentScope, currentBlock, ["shl", register , str(shiftNumber)])
+        asmCode.addLine(currentScope, currentBlock, ["shl", register , f'{shiftNumber:x}h'])
     else:
-        asmCode.addLine(currentScope, currentBlock, ["shr" ,register, str(shiftNumber)])
+        asmCode.addLine(currentScope, currentBlock, ["shr" ,register, f'{shiftNumber:x}h'])
 
     asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", register])
 
@@ -727,15 +726,15 @@ def _movAdder(value, register):
 
 
     if re.match(cc.numbers, value):
-        asmCode.addLine(currentScope, currentBlock, ["mov", register, value])
+        asmCode.addLine(currentScope, currentBlock, ["mov", register, f'{int(value):x}h'])
         return 'number'
     
     elif value[0:2] == '0x':
-        asmCode.addLine(currentScope, currentBlock, ["mov", register, value[2:]])
+        asmCode.addLine(currentScope, currentBlock, ["mov", register, f'{int(value):x}h'])
         return 'number'
 
     elif value[0] == '\'' or value[0] == '\"':
-        asmCode.addLine(currentScope, currentBlock, ["mov", register, format(ord(value[1]), 'x')])
+        asmCode.addLine(currentScope, currentBlock, ["mov", register, format(ord(value[1]), 'x') + 'h'])
         return 'number'
     
     else:
@@ -749,11 +748,11 @@ def _secondInstructionBlockShaper(operation, register1, value):
     global asmCode
 
     if re.match(cc.numbers, value):
-        asmCode.addLine(currentScope, currentBlock, [operation, register1, value])
+        asmCode.addLine(currentScope, currentBlock, [operation, register1, f'{int(value):x}h'])
     elif value[0:2] == '0x':
-        asmCode.addLine(currentScope, currentBlock, [operation, register1, value[2:]])
+        asmCode.addLine(currentScope, currentBlock, [operation, register1, f'{value[2:]}h'])
     elif value[0] == '\'' or value[0] == '\"':
-        asmCode.addLine(currentScope, currentBlock, [operation, register1, format(ord(value[1]), 'x')])
+        asmCode.addLine(currentScope, currentBlock, [operation, register1, format(ord(value[1]), 'x') + 'h'])
     else:
         register2 = currentRegister.getRegister()
         asmCode.addLine(currentScope, currentBlock, ['mov', register2, '[' + value + "]"])
@@ -769,9 +768,9 @@ def _callShaper(codeLine):
 
     for argument in codeLine[1]:
         if re.match(cc.numbers, argument):
-            asmCode.addLine(currentScope, currentBlock, ["push", argument])
+            asmCode.addLine(currentScope, currentBlock, ["push", f'{int(argument):x}h'])
         elif argument[0] == '\'' or argument[0] == '\"':
-            asmCode.addLine(currentScope, currentBlock, ["push", format(ord(argument[1]), 'x')])
+            asmCode.addLine(currentScope, currentBlock, ["push", format(ord(argument[1]), 'x') + 'h'])
         else:
             asmCode.addLine(currentScope, currentBlock, ["push", "[" + argument + "]"])
 

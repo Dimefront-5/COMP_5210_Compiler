@@ -25,7 +25,6 @@ import sys
 import os
 import networkx as nx
 import matplotlib.pyplot as plt
-import shutil
 
 import warnings
 warnings.filterwarnings("ignore") #This is so we can ignore the matplotlib warning for using a deprecated extension
