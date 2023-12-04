@@ -118,8 +118,6 @@ global registerMapping
 global variableMapping
 
 def codeShaper(threeAddrCode, symbolTable):
-    global asmCode
-
     returnedASMCode = _generateAssemblyCode(threeAddrCode, symbolTable)
 
     return returnedASMCode
@@ -202,8 +200,6 @@ def _figureOutHowMuchStackSpaceWeNeed(symbolTable, threeAddrCode):
 
     return spaceNeeded
 
-
-
 def _doesItNeedSpace(value, arguments, variables, foundarguments, foundvars):
     global currentScope
     spaceNeeded = 0
@@ -246,13 +242,322 @@ def _createEpilogue():
     asmCode.addLine(currentScope, returnBlock, ["ret"])
 
 
+#Shapes each functions code into assembly
+def _codeShaper(codeLine):
+    global currentScope
+    global currentBlock
+    global currentRegister
+
+
+    statementIndicator = codeLine[-1]
+    statementIndicatorForIfs = codeLine[0] #I don't know why I did this, but for some reason I left its at the front. It makes it look nice while debugging but not for consistency.
+    
+    if statementIndicator == 'return':
+        _returnShaper(codeLine)
+    elif statementIndicator == 'assign':
+        _assignShaper(codeLine)
+    elif statementIndicator == 'decl':
+        _assignShaper(codeLine) #These are the same thing
+    elif statementIndicator == 'functionCall':
+        _callShaper(codeLine)
+    elif statementIndicatorForIfs == 'if':
+        _ifShaper(codeLine)
+    elif statementIndicator == 'goto':
+        _gotoShaper(codeLine)
+
+
+#Shapes a return statement into assembly
+def _returnShaper(codeLine):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+    
+    if re.match(cc.numbers, codeLine[0]):#Checking to see if we need to refrence memory or just a number
+        returnCode = ["mov", "rax", f'{int(codeLine[0]):x}h']
+    elif codeLine[0][0] == '\'' or codeLine[0][0] == '\"':  #For characters
+        returnCode = ["mov", "rax", format(ord(codeLine[0][1]), 'x') + "h"]
+    else:
+        returnCode = ["mov", "rax", "[" + codeLine[0] + "]"]
+
+    asmCode.addLine(currentScope, currentBlock, returnCode)
+    asmCode.addLine(currentScope, currentBlock, ["jmp", currentScope + 'Return'])#We jump to the return block we make in the epilogue
+
+#Shapes an assignment statement into assembly
+def _assignShaper(codeLine):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+    global jumpTable
+
+    if re.match(cc.exprOps, codeLine[2]): #Meaning we have an expression
+        _exprShaper(codeLine)
+    elif codeLine[2] in jumpTable: #Meaning we have an if statement
+        _multipleIfShaper(codeLine)
+    else:
+        if codeLine[1].isnumeric():
+            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", f'{int(codeLine[1]):x}h' ])
+        elif codeLine[1][0] == '\'' or codeLine[1][0] == '\"':  #For characters
+            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", format(ord(codeLine[1][1]), 'x') + "h"])
+        else:
+            register = currentRegister.getRegister()
+
+            _movAdder(codeLine[1], register)
+            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", register])
+
+#Figures out what instruction we need to use for an expression
+def _exprShaper(codeLine):
+    operator = codeLine[2]
+
+    if operator == '+':
+        _operatorShaper(codeLine, 'add')
+    elif operator == '-':
+        _operatorShaper(codeLine, 'sub')
+    elif operator == '*':
+        _shiftChecking(codeLine, 'mul')
+    elif operator == '/':
+        _shiftChecking(codeLine, 'div')
+
+#Sets up for multiple if statement conditionals
+def _multipleIfShaper(codeLine):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+
+    register = currentRegister.getRegister()
+
+    _movAdder(codeLine[1], register)
+    
+    jumpExpression = jumpTable[codeLine[2]]
+
+    _secondInstructionBlockShaper("cmp", register, codeLine[3])
+    
+    asmCode.addLine(currentScope, currentBlock, [jumpExpression, 'REPLACE'])#We leave this like this so we can change it later
+
+#Will check for some basic optimizations for multiplication and division
+#Then will see if we can shift it instead of using the actual operation
+def _shiftChecking(codeLine, operation):
+    if codeLine[1] == '1':#If we are multiplying by 1, we can just move the number into the variable
+        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", f'{int(codeLine[3]):x}h'])
+
+    elif codeLine[3] == '1':
+        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", f'{int(codeLine[1]):x}h'])
+
+    elif codeLine[1] == '0':#we can just move 0 into the variable
+        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", '0h'])
+
+    elif codeLine[1].isnumeric() and _powerFinder(int(codeLine[1])):
+        if operation == 'div':
+            _shiftAdder(codeLine, 1, 3, 'right')
+        else:
+            _shiftAdder(codeLine, 1, 3, 'left')
+
+    elif codeLine[3].isnumeric() and _powerFinder(int(codeLine[3])):#If we are dividing by an even number, we can just shift the number to the left
+        if operation == 'div':
+            _shiftAdder(codeLine, 3, 1, 'right')
+        else:
+            _shiftAdder(codeLine, 3, 1, 'left')
+    else:
+        _operatorShaper(codeLine, operation)
+
+#I had ChatGPT generate this function for me
+def _powerFinder(num):
+    # Check if the number is greater than 0 and has only one bit set to 1.
+    # A power of 2 in binary has only one bit set.
+    return num > 0 and (num & (num - 1)) == 0
+
+
+#Looks to see if we can use shifts instead of the actual operation
+def _shiftAdder(codeLine, codeLineIndex, oppositeIndex, direction):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+
+    shiftNumber = _getShiftCount(int(codeLine[codeLineIndex]))
+    register = currentRegister.getRegister()
+
+    _movAdder(codeLine[oppositeIndex], register)
+
+    if direction == 'left':
+        asmCode.addLine(currentScope, currentBlock, ["shl", register , f'{shiftNumber:x}h'])
+    else:
+        asmCode.addLine(currentScope, currentBlock, ["shr" ,register, f'{shiftNumber:x}h'])
+
+    asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", register])
+
+
+#I had ChatGPT generate this function for me
+def _getShiftCount(num):
+    if num <= 0:
+        return 0  # Handling the case when num is not a power of 2.
+    
+    shift_count = 0
+    while (num & 1) == 0:
+        num >>= 1
+        shift_count += 1
+
+    return shift_count
+
+#Shapes an expression into assembly
+def _operatorShaper(codeLine, instruction):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+
+    register = currentRegister.getRegister()
+
+    _movAdder(codeLine[1], register)
+    
+    _secondInstructionBlockShaper(instruction, register, codeLine[3])
+
+    asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", register])
+
+def _movAdder(value, register):
+    global currentScope
+    global currentBlock
+    global asmCode
+
+
+    if re.match(cc.numbers, value):
+        asmCode.addLine(currentScope, currentBlock, ["mov", register, f'{int(value):x}h'])
+    
+    elif value[0:2] == '0x':
+        asmCode.addLine(currentScope, currentBlock, ["mov", register, f'{int(value):x}h'])
+
+    elif value[0] == '\'' or value[0] == '\"':
+        asmCode.addLine(currentScope, currentBlock, ["mov", register, format(ord(value[1]), 'x') + 'h'])
+    
+    else:
+        asmCode.addLine(currentScope, currentBlock, ["mov", register, '[' + value + "]"])
+
+def _secondInstructionBlockShaper(operation, register1, value):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+
+    if re.match(cc.numbers, value):
+        asmCode.addLine(currentScope, currentBlock, [operation, register1, f'{int(value):x}h'])
+    elif value[0:2] == '0x':
+        asmCode.addLine(currentScope, currentBlock, [operation, register1, f'{value[2:]}h'])
+    elif value[0] == '\'' or value[0] == '\"':
+        asmCode.addLine(currentScope, currentBlock, [operation, register1, format(ord(value[1]), 'x') + 'h'])
+    else:
+        register2 = currentRegister.getRegister()
+        asmCode.addLine(currentScope, currentBlock, ['mov', register2, '[' + value + "]"])
+        asmCode.addLine(currentScope, currentBlock, [operation, register1, register2])
+
+
+#shapes our call statements
+def _callShaper(codeLine):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+
+    for argument in codeLine[1]:
+        if re.match(cc.numbers, argument):
+            asmCode.addLine(currentScope, currentBlock, ["push", f'{int(argument):x}h'])
+        elif argument[0] == '\'' or argument[0] == '\"':
+            asmCode.addLine(currentScope, currentBlock, ["push", format(ord(argument[1]), 'x') + 'h'])
+        else:
+            asmCode.addLine(currentScope, currentBlock, ["push", "[" + argument + "]"])
+
+    asmCode.addLine(currentScope, currentBlock, ["call", codeLine[0]])
+    asmCode.addLine(currentScope, currentBlock, ["xor", "rax", "rax"])
+
+
+#Shapes our if statements   
+def _ifShaper(codeLine):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+    global jumpTable
+
+    jumpExpression = jumpTable[codeLine[2]]
+
+    if not (jumpExpression == 'and' or jumpExpression == 'or'):
+        register = currentRegister.getRegister()
+
+        _movAdder(codeLine[1], register)
+        
+        _secondInstructionBlockShaper("cmp", register, codeLine[3])
+        
+        asmCode.addLine(currentScope, currentBlock, [jumpExpression, 'L' + codeLine[7]])
+    else:
+        _multipleIfConditional(codeLine, jumpExpression)
+
+
+#Shapes our gotos
+def _gotoShaper(codeLine):
+    global currentScope
+    global currentBlock
+    global asmCode
+
+    if len(asmCode.code[currentScope][currentBlock]) == 0 or not asmCode.code[currentScope][currentBlock][-1][0] == 'jmp':#If there is a jump at the end of the block, we don't need to add another one This is for return statements in loops
+        asmCode.addLine(currentScope, currentBlock, ['jmp', codeLine[0]])
+
+
+#Fixes our multiple conditional statements so it turns into assembyl correctly
+def _multipleIfConditional(codeLine, operator):
+    global currentScope
+    global currentBlock
+    global currentRegister
+    global asmCode
+    global jumpTable
+
+    #    if operator == 'or', We will need to swap the first operator around so it acts as an if statement
+    oppositeJumps = {
+        'jne': 'je',
+        'je': 'jne',
+        'jle': 'jg',
+        'jge': 'jl',
+        'jl': 'jge',
+        'jg': 'jle',
+    }
+    
+    jumpEnd = 'L' + codeLine[7]
+
+    asmBlock = asmCode.code[currentScope][currentBlock]
+
+    newAsmBlock = []
+
+    firstConditional = False
+    for line in asmBlock:
+        if len(line) > 1:
+            if line[1] == 'REPLACE':
+                if operator == 'or' and firstConditional == False:#We only change the first conditional of an or statement
+                    oppositeJump = oppositeJumps[line[0]]
+                    newFinalJump = currentBlock[:1] + str(int(currentBlock[1:]) + 1) 
+                    tempLine = [oppositeJump, newFinalJump]
+                else:
+                    tempLine = [line[0], jumpEnd]
+
+                if firstConditional == False:
+                    firstConditional = True
+
+                newAsmBlock.append(tempLine)
+            else:
+                newAsmBlock.append(line)
+        else:
+            newAsmBlock.append(line)
+
+
+    asmCode.code[currentScope][currentBlock] = newAsmBlock
+
+
 #Adds our global variables to the assembly code
 def _addingGlobalVars(symbolTable):
     global_vars = symbolTable.get_vars('global')
 
     for var in global_vars:
         asmCode.addBlock('global', var)
-        if global_vars[var][0] == 'int' or global_vars[var][0] == 'float':
+        if global_vars[var][0] == 'int' or global_vars[var][0] == 'float' or global_vars[var][0] == 'double':
             if len(global_vars[var]) > 1:
                 asmCode.addLine('global', var, [f'.long',f'{global_vars[var][1]}h'])
             else:
@@ -265,6 +570,89 @@ def _addingGlobalVars(symbolTable):
             else:
                 asmCode.addLine('global', var, ['.byte', 0])
 
+#Creates a new mapping for our registers
+def _registrySetter():
+    global asmCode
+
+    code = asmCode.code
+
+    registersInBlock = {}
+    for scope in code:
+        for block in code[scope]:
+            registersInBlock[block] = {}
+            for index, line in enumerate(code[scope][block]):
+                if len(line) > 1:
+                    if line[1][:1] == 'r' and line[1][1:].isnumeric():
+                        if line[1] not in registersInBlock[block]:
+                            registersInBlock[block][line[1]] = [index, index]
+                        else:
+                            registersInBlock[block][line[1]][1] = index
+
+                    if len(line) > 2:
+                        if line[2][:1] == 'r' and line[2][1:].isnumeric():
+                            if line[2] not in registersInBlock[block]:
+                                registersInBlock[block][line[1]] = [index, index]
+                            else:
+                                registersInBlock[block][line[2]][1] = index
+
+    _registerAllocator(registersInBlock)
+
+#Allocates registers to our code
+def _registerAllocator(registersInBlock):
+    global registerMapping
+    registerMapping = {}
+
+    for block in registersInBlock:
+        registerMapping[block] = {}
+
+        registerList = ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15']
+        registerCount = len(registerList)
+        index = -1
+        for register in registersInBlock[block]:#I am just going to assign registers in the order they appear in the code, I won't leave values in registers.
+            index = (index + 1) % registerCount
+            registerMapping[block][register] = registerList[index]                          
+
+#Will assign refrences to our variables in the stack
+def _changingMemoryReferences(symbolTable):
+    global variableMapping
+
+    stackAddress = 4
+    variableMapping = {}
+    for scope in symbolTable.symbolTable:
+        variableMapping[scope] = {}
+        if scope != 'global':
+            variables = symbolTable.get_vars(scope)
+            arguments = symbolTable.get_args(scope)
+
+            for variable in variables:
+                if variables[variable][0] == 'int':
+                    variableMapping[scope][variable] = f'DWORD PTR [rbp-{stackAddress}]'
+                    stackAddress += 4
+                elif variables[variable][0] == 'char':#We used to put the value in the symbol table so thats why there is a 0 here
+                    variableMapping[scope][variable] = f'BYTE PTR [rbp-{stackAddress}]'
+                    stackAddress += 4
+                elif variables[variable][0] == 'float':
+                    variableMapping[scope][variable] = f'QWORD PTR [rbp-{stackAddress}]'
+                    stackAddress += 8
+                elif variables[variable][0] == 'double':
+                    variableMapping[scope][variable] = f'QWORD PTR [rbp-{stackAddress}]'
+                    stackAddress += 16
+
+            argumentAddress = 4
+            for argument in reversed(arguments): #Needs to be reversed so we can access the arguments in the correct order
+                if arguments[argument] == 'int' or arguments[argument] == 'char':#We don't put the number the argument is at in the symbol table anymore, so we don't need to check for it
+                    if arguments[argument] == 'char':
+                        variableMapping[scope][f'{argument}'] = f'BYTE PTR [rbp+{argumentAddress}]'
+                    else:
+                        variableMapping[scope][argument]= f'DWORD PTR [rbp+{argumentAddress}]'
+                    argumentAddress += 4
+                elif arguments[argument] == 'float':
+                    variableMapping[scope][argument] = f'QWORD PTR [rbp+{argumentAddress}]'
+                    argumentAddress += 8
+                elif arguments[argument] == 'double':
+                    variableMapping[scope][argument]= f'QWORD PTR [rbp+{argumentAddress}]'
+                    argumentAddress += 16
+
 
 #Will recreate our assembly code with the new mappings and memory references
 def _recreatingCode(symbolTable):
@@ -272,9 +660,7 @@ def _recreatingCode(symbolTable):
     global currentScope
     global currentBlock
 
-
     newAsmCode = assemblyCode()
-
 
     temporaryVariables = {}
 
@@ -332,7 +718,6 @@ def _isThisARegisterOrAMemoryReference(line, index, dontAddLine):
     global registerMapping
     global variableMapping
 
-
     currentTemporaryVariable = ''
     if _isItARegister(line[index], registerMapping, currentBlock) == True:
         line[index] = registerMapping[currentBlock][line[index]]
@@ -350,6 +735,14 @@ def _isThisARegisterOrAMemoryReference(line, index, dontAddLine):
                 currentTemporaryVariable = line[index][1:-1]
     
     return line, currentTemporaryVariable, dontAddLine
+
+
+#Checks to see if a line is a register
+def _isItARegister(line, newMappings, block):
+    if line[:1] == 'r' and line[1:].isnumeric():
+        if line in newMappings[block]:
+            return True
+    return False
 
 #Changes our temporary variables to the correct registers and memory references and removes the temp variables from the code
 def _changingTempVars(symbolTable, newAsmCode, temporaryVariables, currentTemporaryVariable, line):
@@ -462,414 +855,3 @@ def _remappingBothRegisters(line, temporaryVariables, currentTemporaryVariable):
         line[1] = secondActualRegister
     
     return line
-
-#Checks to see if a line is a register
-def _isItARegister(line, newMappings, block):
-    if line[:1] == 'r' and line[1:].isnumeric():
-        if line in newMappings[block]:
-            return True
-    return False
-
-#Creates a new mapping for our registers
-def _registrySetter():
-    global asmCode
-
-    code = asmCode.code
-
-    registersInBlock = {}
-    for scope in code:
-        for block in code[scope]:
-            registersInBlock[block] = {}
-            for index, line in enumerate(code[scope][block]):
-                if len(line) > 1:
-                    if line[1][:1] == 'r' and line[1][1:].isnumeric():
-                        if line[1] not in registersInBlock[block]:
-                            registersInBlock[block][line[1]] = [index, index]
-                        else:
-                            registersInBlock[block][line[1]][1] = index
-
-                    if len(line) > 2:
-                        if line[2][:1] == 'r' and line[2][1:].isnumeric():
-                            if line[2] not in registersInBlock[block]:
-                                registersInBlock[block][line[1]] = [index, index]
-                            else:
-                                registersInBlock[block][line[2]][1] = index
-
-    _registerAllocator(registersInBlock)
-
-#Allocates registers to our code
-def _registerAllocator(registersInBlock):
-    global registerMapping
-    registerMapping = {}
-
-    for block in registersInBlock:
-        registerMapping[block] = {}
-
-        registerList = ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15']
-        registerCount = len(registerList)
-        index = -1
-        for register in registersInBlock[block]:#I am just going to assign registers in the order they appear in the code, I won't leave values in registers.
-            index = (index + 1) % registerCount
-            registerMapping[block][register] = registerList[index]                          
-
-#Will assign refrences to our variables in the stack
-def _changingMemoryReferences(symbolTable):
-    global variableMapping
-
-    stackAddress = 4
-    variableMapping = {}
-    for scope in symbolTable.symbolTable:
-        variableMapping[scope] = {}
-        if scope != 'global':
-            variables = symbolTable.get_vars(scope)
-            arguments = symbolTable.get_args(scope)
-
-            for variable in variables:
-                if variables[variable][0] == 'int':
-                    variableMapping[scope][variable] = f'DWORD PTR [rbp-{stackAddress}]'
-                    stackAddress += 4
-                elif variables[variable][0] == 'char':#We used to put the value in the symbol table so thats why there is a 0 here
-                    variableMapping[scope][variable] = f'BYTE PTR [rbp-{stackAddress}]'
-                    stackAddress += 4
-                elif variables[variable][0] == 'float':
-                    variableMapping[scope][variable] = f'QWORD PTR [rbp-{stackAddress}]'
-                    stackAddress += 8
-                elif variables[variable][0] == 'double':
-                    variableMapping[scope][variable] = f'QWORD PTR [rbp-{stackAddress}]'
-                    stackAddress += 16
-
-            argumentAddress = 4
-            for argument in reversed(arguments): #Needs to be reversed so we can access the arguments in the correct order
-                if arguments[argument] == 'int' or arguments[argument] == 'char':#We don't put the number the argument is at in the symbol table anymore, so we don't need to check for it
-                    if arguments[argument] == 'char':
-                        variableMapping[scope][f'{argument}'] = f'BYTE PTR [rbp+{argumentAddress}]'
-                    else:
-                        variableMapping[scope][argument]= f'DWORD PTR [rbp+{argumentAddress}]'
-                    argumentAddress += 4
-                elif arguments[argument] == 'float':
-                    variableMapping[scope][argument] = f'QWORD PTR [rbp+{argumentAddress}]'
-                    argumentAddress += 8
-                elif arguments[argument] == 'double':
-                    variableMapping[scope][argument]= f'QWORD PTR [rbp+{argumentAddress}]'
-                    argumentAddress += 16
-                            
-
-#Shapes each functions code into assembly
-def _codeShaper(codeLine):
-    global currentScope
-    global currentBlock
-    global currentRegister
-
-
-    statementIndicator = codeLine[-1]
-    statementIndicatorForIfs = codeLine[0] #I don't know why I did this, but for some reason I left its at the front. It makes it look nice while debugging but not for consistency.
-    
-    if statementIndicator == 'return':
-        _returnShaper(codeLine)
-    elif statementIndicator == 'assign':
-        _assignShaper(codeLine)
-    elif statementIndicator == 'decl':
-        _assignShaper(codeLine) #These are the same thing
-    elif statementIndicator == 'functionCall':
-        _callShaper(codeLine)
-    elif statementIndicatorForIfs == 'if':
-        _ifShaper(codeLine)
-    elif statementIndicator == 'goto':
-        _gotoShaper(codeLine)
-
-
-#Shapes a return statement into assembly
-def _returnShaper(codeLine):
-    global currentScope
-    global currentBlock
-    global currentRegister
-    global asmCode
-    
-    if re.match(cc.numbers, codeLine[0]):#Checking to see if we need to refrence memory or just a number
-        returnCode = ["mov", "rax", f'{int(codeLine[0]):x}h']
-    elif codeLine[0][0] == '\'' or codeLine[0][0] == '\"':  #For characters
-        returnCode = ["mov", "rax", format(ord(codeLine[0][1]), 'x') + "h"]
-    else:
-        returnCode = ["mov", "rax", "[" + codeLine[0] + "]"]
-
-    asmCode.addLine(currentScope, currentBlock, returnCode)
-    asmCode.addLine(currentScope, currentBlock, ["jmp", currentScope + 'Return'])#We jump to the return block we make in the epilogue
-
-#Shapes an assignment statement into assembly
-def _assignShaper(codeLine):
-    global currentScope
-    global currentBlock
-    global currentRegister
-    global asmCode
-    global jumpTable
-
-    if re.match(cc.exprOps, codeLine[2]): #Meaning we have an expression
-        _exprShaper(codeLine)
-    elif codeLine[2] in jumpTable: #Meaning we have an if statement
-        _multipleIfShaper(codeLine)
-    else:
-        if codeLine[1].isnumeric():
-            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", f'{int(codeLine[1]):x}h' ])
-        elif codeLine[1][0] == '\'' or codeLine[1][0] == '\"':  #For characters
-            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", format(ord(codeLine[1][1]), 'x') + "h"])
-        else:
-            register = currentRegister.getRegister()
-
-            _movAdder(codeLine[1], register)
-            asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", register])
-
-
-
-#Figures out what instruction we need to use for an expression
-def _exprShaper(codeLine):
-    operator = codeLine[2]
-
-    if operator == '+':
-        _operatorShaper(codeLine, 'add')
-    elif operator == '-':
-        _operatorShaper(codeLine, 'sub')
-    elif operator == '*':
-        _shiftChecking(codeLine, 'mul')
-    elif operator == '/':
-        _shiftChecking(codeLine, 'div')
-
-
-
-
-#Will check for some basic optimizations for multiplication and division
-#Then will see if we can shift it instead of using the actual operation
-def _shiftChecking(codeLine, operation):
-    if codeLine[1] == '1':#If we are multiplying by 1, we can just move the number into the variable
-        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", f'{int(codeLine[3]):x}h'])
-
-    elif codeLine[3] == '1':
-        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", f'{int(codeLine[1]):x}h'])
-
-    elif codeLine[1] == '0':#we can just move 0 into the variable
-        asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", '0h'])
-
-    elif codeLine[1].isnumeric() and is_power_of_2(int(codeLine[1])):
-        if operation == 'div':
-            _shiftFinder(codeLine, 1, 3, 'right')
-        else:
-            _shiftFinder(codeLine, 1, 3, 'left')
-
-    elif codeLine[3].isnumeric() and is_power_of_2(int(codeLine[3])):#If we are dividing by an even number, we can just shift the number to the left
-        if operation == 'div':
-            _shiftFinder(codeLine, 3, 1, 'right')
-        else:
-            _shiftFinder(codeLine, 3, 1, 'left')
-    else:
-        _operatorShaper(codeLine, operation)
-
-#I had ChatGPT generate this function for me
-def is_power_of_2(num):
-    # Check if the number is greater than 0 and has only one bit set to 1.
-    # A power of 2 in binary has only one bit set.
-    return num > 0 and (num & (num - 1)) == 0
-
-
-#Looks to see if we can use shifts instead of the actual operation
-def _shiftFinder(codeLine, codeLineIndex, oppositeIndex, direction):
-    global currentScope
-    global currentBlock
-    global currentRegister
-    global asmCode
-
-    shiftNumber = get_shift_count(int(codeLine[codeLineIndex]))
-    register = currentRegister.getRegister()
-
-    _movAdder(codeLine[oppositeIndex], register)
-
-    if direction == 'left':
-        asmCode.addLine(currentScope, currentBlock, ["shl", register , f'{shiftNumber:x}h'])
-    else:
-        asmCode.addLine(currentScope, currentBlock, ["shr" ,register, f'{shiftNumber:x}h'])
-
-    asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", register])
-
-
-#I had ChatGPT generate this function for me
-def get_shift_count(num):
-    if num <= 0:
-        return 0  # Handling the case when num is not a power of 2.
-    
-    shift_count = 0
-    while (num & 1) == 0:
-        num >>= 1
-        shift_count += 1
-
-    return shift_count
-
-
-
-#Shapes an expression into assembly
-def _operatorShaper(codeLine, instruction):
-    global currentScope
-    global currentBlock
-    global currentRegister
-    global asmCode
-
-    register = currentRegister.getRegister()
-
-    _movAdder(codeLine[1], register)
-    
-    _secondInstructionBlockShaper(instruction, register, codeLine[3])
-
-    asmCode.addLine(currentScope, currentBlock, ["mov", "[" + codeLine[0] + "]", register])
-
-def _movAdder(value, register):
-    global currentScope
-    global currentBlock
-    global asmCode
-
-
-    if re.match(cc.numbers, value):
-        asmCode.addLine(currentScope, currentBlock, ["mov", register, f'{int(value):x}h'])
-        return 'number'
-    
-    elif value[0:2] == '0x':
-        asmCode.addLine(currentScope, currentBlock, ["mov", register, f'{int(value):x}h'])
-        return 'number'
-
-    elif value[0] == '\'' or value[0] == '\"':
-        asmCode.addLine(currentScope, currentBlock, ["mov", register, format(ord(value[1]), 'x') + 'h'])
-        return 'number'
-    
-    else:
-        asmCode.addLine(currentScope, currentBlock, ["mov", register, '[' + value + "]"])
-        return 'variable'
-
-def _secondInstructionBlockShaper(operation, register1, value):
-    global currentScope
-    global currentBlock
-    global currentRegister
-    global asmCode
-
-    if re.match(cc.numbers, value):
-        asmCode.addLine(currentScope, currentBlock, [operation, register1, f'{int(value):x}h'])
-    elif value[0:2] == '0x':
-        asmCode.addLine(currentScope, currentBlock, [operation, register1, f'{value[2:]}h'])
-    elif value[0] == '\'' or value[0] == '\"':
-        asmCode.addLine(currentScope, currentBlock, [operation, register1, format(ord(value[1]), 'x') + 'h'])
-    else:
-        register2 = currentRegister.getRegister()
-        asmCode.addLine(currentScope, currentBlock, ['mov', register2, '[' + value + "]"])
-        asmCode.addLine(currentScope, currentBlock, [operation, register1, register2])
-
-
-#shapes our call statements
-def _callShaper(codeLine):
-    global currentScope
-    global currentBlock
-    global currentRegister
-    global asmCode
-
-    for argument in codeLine[1]:
-        if re.match(cc.numbers, argument):
-            asmCode.addLine(currentScope, currentBlock, ["push", f'{int(argument):x}h'])
-        elif argument[0] == '\'' or argument[0] == '\"':
-            asmCode.addLine(currentScope, currentBlock, ["push", format(ord(argument[1]), 'x') + 'h'])
-        else:
-            asmCode.addLine(currentScope, currentBlock, ["push", "[" + argument + "]"])
-
-    asmCode.addLine(currentScope, currentBlock, ["call", codeLine[0]])
-    asmCode.addLine(currentScope, currentBlock, ["xor", "rax", "rax"])
-
-
-#Shapes our if statements   
-def _ifShaper(codeLine):
-    global currentScope
-    global currentBlock
-    global currentRegister
-    global asmCode
-    global jumpTable
-
-    jumpExpression = jumpTable[codeLine[2]]
-
-    if not (jumpExpression == 'and' or jumpExpression == 'or'):
-        register = currentRegister.getRegister()
-
-        _movAdder(codeLine[1], register)
-        
-        _secondInstructionBlockShaper("cmp", register, codeLine[3])
-        
-        asmCode.addLine(currentScope, currentBlock, [jumpExpression, 'L' + codeLine[7]])
-    else:
-        _multipleIfConditional(codeLine, jumpExpression)
-
-
-#Shapes our gotos
-def _gotoShaper(codeLine):
-    global currentScope
-    global currentBlock
-    global asmCode
-
-    if len(asmCode.code[currentScope][currentBlock]) == 0 or not asmCode.code[currentScope][currentBlock][-1][0] == 'jmp':#If there is a jump at the end of the block, we don't need to add another one This is for return statements in loops
-        asmCode.addLine(currentScope, currentBlock, ['jmp', codeLine[0]])
-
-
-#Sets up for multiple if statement conditionals
-def _multipleIfShaper(codeLine):
-    global currentScope
-    global currentBlock
-    global currentRegister
-    global asmCode
-
-    register = currentRegister.getRegister()
-
-    _movAdder(codeLine[1], register)
-    
-    jumpExpression = jumpTable[codeLine[2]]
-
-    _secondInstructionBlockShaper("cmp", register, codeLine[3])
-    
-    asmCode.addLine(currentScope, currentBlock, [jumpExpression, 'REPLACE'])#We leave this like this so we can change it later
-
-
-#Fixes our multiple conditional statements so it turns into assembyl correctly
-def _multipleIfConditional(codeLine, operator):
-    global currentScope
-    global currentBlock
-    global currentRegister
-    global asmCode
-    global jumpTable
-
-    #    if operator == 'or', We will need to swap the first operator around so it acts as an if statement
-    oppositeJumps = {
-        'jne': 'je',
-        'je': 'jne',
-        'jle': 'jg',
-        'jge': 'jl',
-        'jl': 'jge',
-        'jg': 'jle',
-    }
-    
-    jumpEnd = 'L' + codeLine[7]
-
-    asmBlock = asmCode.code[currentScope][currentBlock]
-
-    newAsmBlock = []
-
-    firstConditional = False
-    for line in asmBlock:
-        if len(line) > 1:
-            if line[1] == 'REPLACE':
-                if operator == 'or' and firstConditional == False:#We only change the first conditional of an or statement
-                    oppositeJump = oppositeJumps[line[0]]
-                    newFinalJump = currentBlock[:1] + str(int(currentBlock[1:]) + 1) 
-                    tempLine = [oppositeJump, newFinalJump]
-                else:
-                    tempLine = [line[0], jumpEnd]
-
-                if firstConditional == False:
-                    firstConditional = True
-
-                newAsmBlock.append(tempLine)
-            else:
-                newAsmBlock.append(line)
-        else:
-            newAsmBlock.append(line)
-
-
-    asmCode.code[currentScope][currentBlock] = newAsmBlock
